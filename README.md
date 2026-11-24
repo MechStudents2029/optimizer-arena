@@ -1,6 +1,7 @@
 # optimizer-arena
 
 [![CI](https://github.com/MechStudents2029/optimizer-arena/actions/workflows/ci.yml/badge.svg)](https://github.com/MechStudents2029/optimizer-arena/actions/workflows/ci.yml)
+[![Live demo](https://img.shields.io/badge/demo-optimizer--arena.vercel.app-orange)](https://optimizer-arena.vercel.app)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Gradient descent, momentum (heavy-ball and Nesterov), RMSProp, and Adam racing
@@ -11,7 +12,7 @@ Written in TypeScript with no runtime dependencies. Work in progress.
 
 ![2D race on Rosenbrock: momentum, Nesterov and Adam reach the minimum while GD and RMSProp are still in the valley](docs/screenshots/rosenbrock.png)
 
-`npm run dev` opens the 2D race: a log-scaled contour map of the surface, the
+**[Live demo](https://optimizer-arena.vercel.app)** (or `npm run dev` locally) opens the 2D race: a log-scaled contour map of the surface, the
 five trajectories drawn step by step, and each optimizer's update rule beside
 its live step count and loss. Click the plot to move the start point; the
 learning-rate sweep reruns from there in the browser.
@@ -164,6 +165,15 @@ What the numbers say:
 Learning rates matter as much as the algorithm: plain GD with $\eta = 0.1$,
 its best rate on the bowl, diverges on Rosenbrock
 within 100 steps (a unit test checks this).
+
+## Deployment
+
+The Vercel project is connected to this repo: `vercel.json` builds the Vite
+demo with `npm run build`, pushes to `main` deploy to
+[optimizer-arena.vercel.app](https://optimizer-arena.vercel.app), and pull
+requests get preview deploys. Links like
+[`?surface=saddle`](https://optimizer-arena.vercel.app/?surface=saddle) open a
+specific surface.
 
 ## Quick start
 
