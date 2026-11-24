@@ -1,0 +1,31 @@
+{
+  "name": "optimizer-arena",
+  "version": "0.1.0",
+  "description": "Gradient descent, momentum, Nesterov, RMSProp, and Adam racing on classic loss surfaces, with the update-rule math beside each.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Adam Rouzaqui",
+  "repository": "github:MechStudents2029/optimizer-arena",
+  "keywords": [
+    "adam-optimizer",
+    "gradient-descent",
+    "machine-learning",
+    "optimization",
+    "typescript",
+    "visualization"
+  ],
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "race": "node --experimental-strip-types scripts/race.ts",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
+}
