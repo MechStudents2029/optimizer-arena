@@ -151,4 +151,22 @@ describe("the saddle point x² − y²", () => {
     const r = run(saddle, adam({ lr: 0.01 }), { steps: 100, start: [1, 1e-3] });
     expect(Math.abs(r.final[1])).toBeGreaterThan(1);
   });
+
+  it("GD's escape step matches the closed form ln(1000)/ln(1 + 2η) → 349", () => {
+    const r = run(saddle, sgd({ lr: 0.01 }), { steps: 1000, start: [1, 1e-3] });
+    const k = r.losses.findIndex((l) => l < -1);
+    expect(k).toBe(Math.ceil(Math.log(1000) / Math.log(1.02)));
+    expect(k).toBe(349);
+  });
+
+  it("momentum's y grows at the dominant eigenvalue of its (y, v) update matrix", () => {
+    const eta = 0.01;
+    const beta = 0.9;
+    const b = 1 + beta + 2 * eta;
+    const lambda = (b + Math.sqrt(b * b - 4 * beta)) / 2;
+    expect(lambda).toBeCloseTo(1.107, 3);
+    const r = run(saddle, momentum({ lr: eta, beta }), { steps: 40, start: [1, 1e-6] });
+    const ys = r.points.map((p) => p[1]);
+    expect(ys[40]! / ys[39]!).toBeCloseTo(lambda, 5);
+  });
 });

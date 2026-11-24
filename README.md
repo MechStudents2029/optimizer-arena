@@ -123,6 +123,8 @@ below $10^{-12}$: it looks finished but is not at a minimum. Nudged $10^{-3}$
 off the axis, plain GD grows $y$ by a factor $(1 + 2\eta)$ per step, which at
 $\eta = 0.01$ is only $1.02^{100} \approx 7.2\times$ after 100 steps. Momentum
 compounds those small pushes and is past $|y| > 1$ in the same 100 steps.
+[docs/saddle-point.md](docs/saddle-point.md) works through the saddle numbers in
+the results table from the update rules.
 
 ## Results
 
