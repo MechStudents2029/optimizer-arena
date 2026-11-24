@@ -9,6 +9,13 @@ the update-rule math written next to each one.
 
 Written in TypeScript with no runtime dependencies. Work in progress.
 
+![2D race on Rosenbrock: momentum, Nesterov and Adam reach the minimum while GD and RMSProp are still in the valley](docs/screenshots/rosenbrock.png)
+
+`npm run dev` opens the 2D race: a log-scaled contour map of the surface, the
+five trajectories drawn step by step, and each optimizer's update rule beside
+its live step count and loss. Click the plot to move the start point; the
+learning-rate sweep reruns from there in the browser.
+
 ## The problem
 
 Training a model means minimising a loss $f(\theta)$ over parameters $\theta$.
@@ -173,6 +180,7 @@ src/optimizers.ts  GD, momentum, Nesterov, RMSProp, Adam as pure step functions
 src/run.ts         run(surface, optimizer) → trajectory, steps to tolerance, divergence
 src/race.ts        learning-rate sweep and ranking used by the script and the demo
 scripts/race.ts    prints the results table (npm run race)
+web/               the 2D race demo (Vite, canvas, no framework)
 test/              Vitest suite
 ```
 

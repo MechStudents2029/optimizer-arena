@@ -32,4 +32,9 @@ describe("race", () => {
       expect(e.steps!).toBeLessThan(gd.steps!);
     }
   });
+
+  it("honours a custom start point", () => {
+    const entries = race(quadratic, { steps: 500, start: [1, 1] });
+    for (const e of entries) expect(e.trajectory!.points[0]).toEqual([1, 1]);
+  });
 });

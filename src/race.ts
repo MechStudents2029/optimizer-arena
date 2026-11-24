@@ -1,6 +1,6 @@
 import { makeOptimizer, optimizerIds, type OptimizerId } from "./optimizers.ts";
 import { run, type Trajectory } from "./run.ts";
-import type { Surface } from "./surfaces.ts";
+import type { Surface, Vec2 } from "./surfaces.ts";
 
 /** Learning rates every optimizer is tried with; the best one per surface wins. */
 export const LR_GRID = [1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 0.1, 0.3, 1];
@@ -12,6 +12,8 @@ export interface RaceOptions {
   steps?: number;
   tol?: number;
   lrGrid?: number[];
+  /** Starting point; defaults to the surface's own start. */
+  start?: Vec2;
 }
 
 export interface RaceEntry {
@@ -48,7 +50,7 @@ function better(a: RaceEntry, b: RaceEntry): boolean {
  * optimizers rather than one shared η that favours some of them.
  */
 export function race(surface: Surface, options: RaceOptions = {}): RaceEntry[] {
-  const { steps = 10_000, tol = 1e-6, lrGrid = LR_GRID } = options;
+  const { steps = 10_000, tol = 1e-6, lrGrid = LR_GRID, start } = options;
   const goalIsEscape = !Number.isFinite(surface.minValue);
   return optimizerIds.map((id) => {
     let best: RaceEntry = { optimizer: id, lr: null, steps: null, finalLoss: Infinity, trajectory: null };
@@ -57,6 +59,7 @@ export function race(surface: Surface, options: RaceOptions = {}): RaceEntry[] {
       const t = run(surface, makeOptimizer(id, lr), {
         steps,
         tol,
+        start,
         divergeAt: goalIsEscape ? 1e3 : 1e6,
       });
       if (t.diverged && !goalIsEscape) continue;

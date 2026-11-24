@@ -1,0 +1,38 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --text: #e6e8ee;
+  --muted: #8b93a7;
+  --border: #39404f;
+  --accent: #f5a524;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+body { margin: 0 auto; max-width: 1240px; padding: 1.5rem; }
+h1 { margin: 0; font-size: 1.6rem; }
+h1 span { color: var(--muted); font-weight: 400; }
+header p, #note { color: var(--muted); margin: 0.4rem 0 1rem; }
+a { color: var(--accent); }
+
+#controls { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end; margin-bottom: 0.75rem; }
+label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; color: var(--muted); }
+select, button {
+  font: inherit; font-size: 0.95rem; color: var(--text); background: var(--panel);
+  border: 1px solid var(--border); border-radius: 6px; padding: 0.45rem 0.6rem;
+}
+button { cursor: pointer; }
+button:hover { border-color: var(--accent); }
+#formula { font-family: ui-monospace, Menlo, monospace; font-size: 0.9rem; color: var(--muted); padding-bottom: 0.5rem; }
+
+main { display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: flex-start; }
+#plot {
+  width: min(640px, 100%); aspect-ratio: 1; cursor: crosshair;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--panel);
+}
+#legend { border-collapse: collapse; font-size: 0.9rem; flex: 1 1 380px; }
+#legend th { text-align: left; color: var(--muted); font-weight: 500; padding: 0.3rem 0.5rem; border-bottom: 1px solid var(--border); }
+#legend td { padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--panel); vertical-align: top; }
+#legend td.num, #legend td.rule { font-family: ui-monospace, Menlo, monospace; font-size: 0.82rem; }
+#legend td.rule { color: var(--muted); }
+.swatch { display: inline-block; width: 0.9rem; height: 0.9rem; border-radius: 50%; }
