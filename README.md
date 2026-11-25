@@ -5,8 +5,8 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Gradient descent, momentum (heavy-ball and Nesterov), RMSProp, and Adam racing
-on classic loss surfaces (Rosenbrock, Beale, a saddle point, Himmelblau), with
-the update-rule math written next to each one.
+on classic loss surfaces (Rosenbrock, Beale, a saddle point, Himmelblau,
+Rastrigin, Ackley, Booth), with the update-rule math written next to each one.
 
 Written in TypeScript with no runtime dependencies. Work in progress.
 
@@ -113,6 +113,9 @@ facts are unit tests.
 | Beale | $(1.5-x+xy)^2 + (2.25-x+xy^2)^2 + (2.625-x+xy^3)^2$ | $f(3,\tfrac12)=0$ | flat plateaus next to very steep walls |
 | Saddle | $x^2 - y^2$ | none (unbounded below) | a stationary point that is not a minimum |
 | Himmelblau | $(x^2+y-11)^2 + (x+y^2-7)^2$ | four, all $f=0$ | which basin you land in depends on the path |
+| Rastrigin | $20 + \sum_{i}\left(x_i^2 - 10\cos 2\pi x_i\right)$ | $f(0,0)=0$ | a local minimum in every unit cell |
+| Ackley | $-20e^{-0.2\sqrt{(x^2+y^2)/2}} - e^{(\cos 2\pi x + \cos 2\pi y)/2} + e + 20$ | $f(0,0)=0$ | a nearly flat outer region around one deep funnel |
+| Booth | $(x+2y-7)^2 + (2x+y-5)^2$ | $f(1,3)=0$ | nothing: a well-conditioned quadratic, the control case |
 
 Every analytic gradient is checked against central finite differences at the
 start point and 25 seeded random points in the plot window.
@@ -126,6 +129,58 @@ $\eta = 0.01$ is only $1.02^{100} \approx 7.2\times$ after 100 steps. Momentum
 compounds those small pushes and is past $|y| > 1$ in the same 100 steps.
 [docs/saddle-point.md](docs/saddle-point.md) works through the saddle numbers in
 the results table from the update rules.
+
+**Rastrigin: many local minima.**
+
+$$
+f(x, y) = 20 + \left(x^2 - 10\cos 2\pi x\right) + \left(y^2 - 10\cos 2\pi y\right),
+\qquad
+\frac{\partial f}{\partial x} = 2x + 20\pi \sin 2\pi x
+$$
+
+A shallow bowl $x^2 + y^2$ with a cosine egg-crate of amplitude 10 on top. In
+each coordinate the derivative vanishes just inside every integer, at
+$x \approx \pm 0.995, \pm 1.990, \pm 2.985, \dots$ (the bowl pulls each dimple
+slightly toward the origin), and each of those is a local minimum. Inside
+$[-5.12, 5.12]^2$ that gives 11 such points per axis, so $11^2 = 121$ minima
+of which only the one at the origin is global. A method that follows the local gradient stops in whichever dimple it
+starts in or falls into, and the stopping point has $\nabla f = 0$, so it
+looks exactly like convergence. The tests find these dimples with Newton's
+method and check that each one is a strict local minimum above $f(0,0)$.
+
+**Ackley: a flat outer region.**
+
+$$
+f(x, y) = -20\exp\!\left(-0.2\sqrt{\tfrac12(x^2+y^2)}\right)
+- \exp\!\left(\tfrac12(\cos 2\pi x + \cos 2\pi y)\right) + e + 20
+$$
+
+With $r = \sqrt{\tfrac12(x^2+y^2)}$, the first term's gradient is
+$\frac{2e^{-0.2r}}{r}\,(x, y)$: its magnitude is
+$2\sqrt2\,e^{-0.2 r}$, which decays exponentially with distance, so far from
+the origin the surface is a near-plateau (at $r = 4$ the funnel term is worth
+$-20e^{-0.8} \approx -9$ and its slope is only about $1.3$). There the
+strongest signal comes from the cosine ripples, whose slope reaches up to about
+$6.5$, and those point to the nearest ripple, not to the centre. Near the origin the funnel is steep and
+narrow. The gradient of $\sqrt{x^2+y^2}$ is undefined at the origin itself;
+the code returns the subgradient $0$ there, which is also where the minimum
+is. A good Ackley run needs steps large enough to hop ripples on the plateau
+and small enough to settle at the bottom of the funnel, and no fixed $\eta$
+does both.
+
+**Booth: the easy quadratic.**
+
+$$
+f(x, y) = (x + 2y - 7)^2 + (2x + y - 5)^2,
+\qquad
+\nabla^2 f = \begin{pmatrix} 10 & 8 \\ 8 & 10 \end{pmatrix}
+$$
+
+Booth is a convex quadratic with Hessian eigenvalues 18 (along $(1,1)$) and 2
+(along $(1,-1)$), so $\kappa = 9$ and GD is stable for $\eta < 2/18 \approx 0.11$.
+There is one minimum, at $(1, 3)$, and no traps. It is here as a control:
+any method that struggles on Booth has a bug or a bad learning rate, not a
+hard problem.
 
 ## Results
 
