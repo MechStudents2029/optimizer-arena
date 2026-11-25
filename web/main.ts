@@ -1,4 +1,13 @@
-import { race, surfaces, surfaceById, type RaceEntry, type Surface, type Vec2 } from "../src/index.ts";
+import {
+  DEFAULT_HYPERPARAMS,
+  race,
+  surfaces,
+  surfaceById,
+  type Hyperparams,
+  type RaceEntry,
+  type Surface,
+  type Vec2,
+} from "../src/index.ts";
 
 const COLORS: Record<string, string> = {
   sgd: "#e6e8ee",
@@ -27,6 +36,9 @@ const FORMULAS: Record<string, string> = {
   beale: "f = (1.5 − x + xy)² + (2.25 − x + xy²)² + (2.625 − x + xy³)²",
   saddle: "f = x² − y²",
   himmelblau: "f = (x² + y − 11)² + (x + y² − 7)²",
+  rastrigin: "f = 20 + Σ (xᵢ² − 10 cos 2πxᵢ)",
+  ackley: "f = −20 exp(−0.2 √(½(x² + y²))) − exp(½(cos 2πx + cos 2πy)) + e + 20",
+  booth: "f = (x + 2y − 7)² + (2x + y − 5)²",
 };
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -35,6 +47,43 @@ const ctx = canvas.getContext("2d")!;
 const surfaceSelect = $<HTMLSelectElement>("surface");
 const speedSelect = $<HTMLSelectElement>("speed");
 const legendBody = document.querySelector<HTMLTableSectionElement>("#legend tbody")!;
+const chart = $<HTMLCanvasElement>("chart");
+const cctx = chart.getContext("2d")!;
+
+// ---- hyperparameter sliders -------------------------------------------------
+// η, β₂ and ε span several orders of magnitude, so those sliders move in log space:
+// η = 10^u, ε = 10^u, and β₂ = 1 − 10^u (so the slider reaches 0.9999 smoothly).
+const tune = $<HTMLInputElement>("tune");
+const sliders = {
+  lr: { el: $<HTMLInputElement>("lr"), to: (u: number) => 10 ** u, from: (v: number) => Math.log10(v) },
+  beta: { el: $<HTMLInputElement>("beta"), to: (u: number) => u, from: (v: number) => v },
+  rho: { el: $<HTMLInputElement>("rho"), to: (u: number) => u, from: (v: number) => v },
+  beta1: { el: $<HTMLInputElement>("beta1"), to: (u: number) => u, from: (v: number) => v },
+  beta2: { el: $<HTMLInputElement>("beta2"), to: (u: number) => 1 - 10 ** u, from: (v: number) => Math.log10(1 - v) },
+  eps: { el: $<HTMLInputElement>("eps"), to: (u: number) => 10 ** u, from: (v: number) => Math.log10(v) },
+};
+type SliderKey = keyof typeof sliders;
+const DEFAULT_LR = 0.01;
+
+const value = (k: SliderKey) => sliders[k].to(Number(sliders[k].el.value));
+const fmt = (k: SliderKey, v: number): string => {
+  if (k === "eps" || k === "lr") return v >= 0.01 ? String(+v.toPrecision(2)) : v.toExponential(1);
+  if (k === "beta2") return String(+v.toFixed(4));
+  return String(+v.toFixed(3));
+};
+function readHyperparams(): Hyperparams {
+  return { beta: value("beta"), rho: value("rho"), beta1: value("beta1"), beta2: value("beta2"), eps: value("eps") };
+}
+function showSliderValues(): void {
+  for (const k of Object.keys(sliders) as SliderKey[]) $(`${k}-out`).textContent = fmt(k, value(k));
+  sliders.lr.el.disabled = tune.checked;
+  $("lr-out").textContent = tune.checked ? "tuned" : fmt("lr", value("lr"));
+}
+function resetSliders(): void {
+  const defaults: Record<SliderKey, number> = { lr: DEFAULT_LR, ...DEFAULT_HYPERPARAMS };
+  for (const k of Object.keys(sliders) as SliderKey[]) sliders[k].el.value = String(sliders[k].from(defaults[k]));
+  tune.checked = true;
+}
 
 for (const s of surfaces) surfaceSelect.add(new Option(s.name, s.id));
 
@@ -144,23 +193,108 @@ function updateLegend(): void {
   }
 }
 
+/**
+ * Loss against step for every optimizer, drawn up to the current frame. With a
+ * finite minimum the y-axis is log₁₀(f − f*), which turns linear convergence
+ * into a straight line; on the saddle (no minimum) it is f itself, linear.
+ */
+function drawChart(longest: number): void {
+  const CW = chart.width;
+  const CH = chart.height;
+  const pad = { l: 64, r: 36, t: 14, b: 34 };
+  const pw = CW - pad.l - pad.r;
+  const ph = CH - pad.t - pad.b;
+  const logScale = Number.isFinite(surface.minValue);
+  const FLOOR = 1e-12;
+  const yOf = (f: number) => (logScale ? Math.log10(Math.max(f - surface.minValue, FLOOR)) : f);
+
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const e of entries) for (const f of e.trajectory?.losses ?? []) {
+    const y = yOf(f);
+    if (y < lo) lo = y;
+    if (y > hi) hi = y;
+  }
+  if (!Number.isFinite(lo)) return;
+  if (logScale) {
+    lo = Math.floor(lo);
+    hi = Math.ceil(hi);
+  } else {
+    lo = Math.max(lo, -2);
+  }
+  if (hi - lo < 1e-9) hi = lo + 1;
+  const xs = Math.max(1, longest);
+  const px = (k: number) => pad.l + (k / xs) * pw;
+  const py = (y: number) => pad.t + (1 - (Math.min(Math.max(y, lo), hi) - lo) / (hi - lo)) * ph;
+
+  cctx.clearRect(0, 0, CW, CH);
+  cctx.font = "20px ui-monospace, Menlo, monospace";
+  cctx.fillStyle = "#8b93a7";
+  cctx.strokeStyle = "#262b36";
+  cctx.lineWidth = 1;
+  // horizontal grid: one line per decade on the log scale, five otherwise
+  const yTicks = logScale
+    ? Array.from({ length: hi - lo + 1 }, (_, i) => lo + i).filter((_, i, a) => a.length <= 14 || i % 2 === 0)
+    : Array.from({ length: 5 }, (_, i) => lo + ((hi - lo) * i) / 4);
+  cctx.textAlign = "right";
+  cctx.textBaseline = "middle";
+  for (const y of yTicks) {
+    cctx.beginPath();
+    cctx.moveTo(pad.l, py(y));
+    cctx.lineTo(CW - pad.r, py(y));
+    cctx.stroke();
+    cctx.fillText(logScale ? `1e${y}` : y.toFixed(2), pad.l - 8, py(y));
+  }
+  cctx.textAlign = "center";
+  cctx.textBaseline = "top";
+  for (let i = 0; i <= 5; i++) {
+    const k = Math.round((xs * i) / 5);
+    cctx.fillText(String(k), px(k), CH - pad.b + 8);
+  }
+
+  for (const e of entries) {
+    const losses = e.trajectory?.losses ?? [];
+    const n = Math.min(losses.length, frame + 1);
+    if (n === 0) continue;
+    cctx.strokeStyle = COLORS[e.optimizer]!;
+    cctx.lineWidth = 2.5;
+    cctx.beginPath();
+    // Thin long runs to at most ~2 points per pixel column.
+    const stride = Math.max(1, Math.floor(n / (2 * pw)));
+    for (let k = 0; k < n; k += stride) {
+      if (k === 0) cctx.moveTo(px(k), py(yOf(losses[k]!)));
+      else cctx.lineTo(px(k), py(yOf(losses[k]!)));
+    }
+    cctx.lineTo(px(n - 1), py(yOf(losses[n - 1]!)));
+    cctx.stroke();
+  }
+  $("chart-axis").textContent = logScale
+    ? "· y: f − f* on a log scale (floored at 1e-12) · x: step"
+    : "· y: f (no minimum, linear) · x: step";
+}
+
 function tick(): void {
   const longest = Math.max(0, ...entries.map((e) => (e.trajectory?.points.length ?? 1) - 1));
   frame = Math.min(longest, frame + Number(speedSelect.value));
   draw();
   updateLegend();
+  drawChart(longest);
   if (frame < longest) raf = requestAnimationFrame(tick);
 }
 
 function restart(): void {
   cancelAnimationFrame(raf);
   const saddle = !Number.isFinite(surface.minValue);
-  entries = race(surface, { steps: 3000, start, lrGrid: saddle ? [0.01] : undefined });
+  const lrGrid = saddle ? [0.01] : tune.checked ? undefined : [value("lr")];
+  entries = race(surface, { steps: 3000, start, lrGrid, hyperparams: readHyperparams() });
+  showSliderValues();
   frame = 0;
   $("formula").textContent = FORMULAS[surface.id] ?? "";
   $("note").textContent = saddle
     ? "The saddle has no minimum, so every optimizer uses η = 0.01 and the race ends when f < −1. Start exactly on the x-axis and nobody escapes."
-    : "Each optimizer uses its best learning rate from {1e-4 … 1} for this start point; a ✓ means f − f* < 1e-6.";
+    : tune.checked
+      ? "Each optimizer uses its best learning rate from {1e-4 … 1} for this start point; a ✓ means f − f* < 1e-6."
+      : `Every optimizer uses η = ${fmt("lr", value("lr"))}; "diverged" means it blew up at that η. A ✓ means f − f* < 1e-6.`;
   raf = requestAnimationFrame(tick);
 }
 
@@ -173,6 +307,20 @@ function selectSurface(id: string): void {
 
 surfaceSelect.addEventListener("change", () => selectSurface(surfaceSelect.value));
 $("replay").addEventListener("click", restart);
+
+// Rerun the race live while a slider is dragged, at most once per animation frame.
+let pending = 0;
+const rerun = () => {
+  showSliderValues();
+  cancelAnimationFrame(pending);
+  pending = requestAnimationFrame(restart);
+};
+for (const { el } of Object.values(sliders)) el.addEventListener("input", rerun);
+tune.addEventListener("change", rerun);
+$("reset").addEventListener("click", () => {
+  resetSliders();
+  rerun();
+});
 canvas.addEventListener("click", (ev) => {
   const r = canvas.getBoundingClientRect();
   start = fromPx(((ev.clientX - r.left) / r.width) * W, ((ev.clientY - r.top) / r.height) * H);
@@ -185,4 +333,5 @@ const requested = query.get("surface");
 const speed = query.get("speed");
 if (speed && [...speedSelect.options].some((o) => o.value === speed)) speedSelect.value = speed;
 if (requested && surfaces.some((s) => s.id === requested)) surfaceSelect.value = requested;
+resetSliders();
 selectSurface(surfaceSelect.value);
