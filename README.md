@@ -141,6 +141,9 @@ one. Numbers come from `npm run race` and are copied into
 | Beale (1, 1.5) | **557** (η=0.03) | **405** (η=0.003) | **403** (η=0.003) | — f=5.7e-6 (η=0.0003) | **205** (η=0.3) |
 | Saddle point (1, 0.001) | **349** (η=0.01) | **72** (η=0.01) | **68** (η=0.01) | **75** (η=0.01) | **80** (η=0.01) |
 | Himmelblau (-0.5, -0.5) | **18** (η=0.01) | **156** (η=0.003) | **18** (η=0.01) | **39** (η=0.1) | **149** (η=1) |
+| Rastrigin (2.2, -1.7) | — f=8.0e+0 (η=0.0003) | — f=8.0e+0 (η=0.0001) | — f=8.0e+0 (η=0.0001) | — f=8.0e+0 (η=0.0001) | — f=8.0e+0 (η=0.0001) |
+| Ackley (3.3, -2.6) | — f=3.5e+0 (η=0.1) | — f=2.6e+0 (η=0.03) | — f=9.0e+0 (η=0.0003) | — f=2.3e+0 (η=0.3) | — f=1.4e-1 (η=1) |
+| Booth (-6, -4) | **14** (η=0.03) | **88** (η=0.003) | **21** (η=0.03) | **14** (η=1) | **93** (η=0.3) |
 
 Steps to f − f* < 0.000001 (saddle: steps until f < -1 at a fixed η=0.01), best η per cell, budget 10000 steps; "—" means the budget ran out, with the final loss shown.
 
@@ -161,6 +164,26 @@ What the numbers say:
   saddle; every other method needs 68 to 80.
 - **Himmelblau.** From $(-0.5, -0.5)$ all five land in the same minimum,
   $(-2.805, 3.131)$; GD and Nesterov get there in 18 steps.
+- **Booth.** The easy control: all five converge. GD and tuned RMSProp take
+  14 steps and Nesterov 21; momentum (88) and Adam (93) are slower at their
+  best $\eta$ on this well-conditioned bowl ($\kappa = 9$).
+- **Rastrigin.** From $(2.2, -1.7)$ nobody gets near the global minimum. All
+  five finish in the dimple at $(1.990, -1.990)$, where $f = 7.96$. Every
+  small $\eta$ lands there (up to $3\times10^{-3}$ for GD and the momentum
+  methods, up to $0.1$ for Adam), and larger rates do not find the centre
+  either: they bounce across the egg-crate and end higher (GD at
+  $\eta = 0.03$ ends at $f = 43.7$). The $\eta$ in each cell is just the
+  first of the tied rates. Started inside the central basin at $(0.3, -0.4)$,
+  plain GD does reach 0 (a unit test).
+- **Ackley.** Nobody reaches $10^{-6}$ in 10,000 steps. Small steps settle in
+  the ripple next to the start (Nesterov's best run, $\eta = 3\times10^{-4}$,
+  ends at $(2.98, -2.98)$ with $f = 9.0$). Larger steps cross the ripples:
+  momentum at $\eta = 0.03$ gets most of the way in and then stops in the
+  ripple at $(0, 0.95)$ ($f = 2.58$); GD at $\eta = 0.1$ never settles (its
+  last 500 losses range from 0.04 to 4.5, and the table shows wherever step
+  10,000 happens to be). Adam at $\eta = 1$ ends closest: it reaches the
+  funnel and hovers there (last 500 losses between 0.139 and 0.147), about
+  $0.04$ from the origin, without settling to the bottom.
 
 Learning rates matter as much as the algorithm: plain GD with $\eta = 0.1$,
 its best rate on the bowl, diverges on Rosenbrock
