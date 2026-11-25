@@ -14,8 +14,10 @@ Written in TypeScript with no runtime dependencies. Work in progress.
 
 **[Live demo](https://optimizer-arena.vercel.app)** (or `npm run dev` locally) opens the 2D race: a log-scaled contour map of the surface, the
 five trajectories drawn step by step, and each optimizer's update rule beside
-its live step count and loss. Click the plot to move the start point; the
-learning-rate sweep reruns from there in the browser.
+its live step count and loss, with a loss-vs-step chart (log scale) below.
+Sliders set $\eta$, momentum $\beta$, RMSProp $\rho$, and Adam's $\beta_1$,
+$\beta_2$, $\epsilon$, and the race reruns live as you drag. Click the plot to
+move the start point; the learning-rate sweep reruns from there in the browser.
 
 ## The problem
 
