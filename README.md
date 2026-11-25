@@ -104,6 +104,69 @@ $\eta\,(1-\beta_1)/\sqrt{1-\beta_2} \approx 3.16\,\eta$ in every coordinate;
 with it, the first step is exactly $\eta \cdot \operatorname{sign}(g)$. Both
 facts are unit tests.
 
+## Demo controls: what the sliders do
+
+Every slider maps to one symbol in the update rules above, and the race reruns
+while you drag.
+
+| slider | symbol | used by | range |
+| --- | --- | --- | --- |
+| learning rate | $\eta$ | all | $10^{-4}$ to $1$, log scale; off while "tune η per optimizer" is ticked |
+| momentum β | $\beta$ | Momentum, Nesterov | 0 to 0.99 |
+| RMSProp ρ | $\rho$ | RMSProp | 0 to 0.999 |
+| Adam β₁ | $\beta_1$ | Adam | 0 to 0.99 |
+| Adam β₂ | $\beta_2$ | Adam | 0.9 to 0.9999, log scale in $1-\beta_2$ |
+| ε | $\epsilon$ | RMSProp, Adam | $10^{-8}$ to $1$, log scale |
+
+- **β (momentum).** The velocity is a geometric sum of past gradients,
+  $v_t = -\eta\sum_{k\ge0}\beta^k g_{t-k}$, so a steady gradient is amplified
+  by $1/(1-\beta)$: 2× at 0.5, 10× at 0.9, 100× at 0.99. $\beta = 0$ is plain
+  gradient descent (a unit test checks this for both momentum and Nesterov).
+  Too little and you zig-zag; too much and you overshoot and ring.
+- **ρ (RMSProp).** The window of the squared-gradient average,
+  $s_t = (1-\rho)\sum_k \rho^k g_{t-k}^2$, is about $1/(1-\rho)$ steps. At
+  $\rho = 0$ the step is $\eta\,g/|g| = \eta\operatorname{sign}(g)$, a fixed-size
+  sign step; larger $\rho$ remembers more history, so a gradient that shrinks
+  near a minimum is divided by a larger, older RMS and the step shrinks too.
+- **β₁ (Adam).** The same averaging as momentum, but normalised:
+  $m$ is a weighted mean of gradients, not a sum, so $\beta_1$ smooths the
+  direction without amplifying the step. $\beta_1 = 0$ is RMSProp with bias
+  correction.
+- **β₂ (Adam).** The window of the second moment, $\approx 1/(1-\beta_2)$ steps
+  (1,000 at the default 0.999). A short window reacts quickly to the gradient
+  scale but makes $\sqrt{\hat v}$ track $|g|$ step by step, which pushes Adam
+  toward sign descent; the slider is log-scaled because the interesting range
+  is 0.9 to 0.9999.
+- **ε.** Guards the division in $g/(\sqrt{s}+\epsilon)$. While
+  $\sqrt{\hat v} \gg \epsilon$ it does nothing. Once $\epsilon$ is comparable to
+  the gradient scale the adaptive scaling switches off: the step tends to
+  $(\eta/\epsilon)\,\hat m$, which is momentum SGD with learning rate
+  $\eta/\epsilon$ (also a unit test).
+- **η and "tune η".** Ticked, each optimizer gets its own best $\eta$ from the
+  grid, as in the results table. Unticked, all five share the slider's
+  $\eta$, which shows how differently the same number behaves: on Rosenbrock
+  $\eta = 0.1$ is a good Adam rate and makes GD diverge.
+
+`npm run sweep` measures one slider at a time with everything else at its
+default ([docs/hyperparameter-sweeps.md](docs/hyperparameter-sweeps.md) has
+every table). Steps to $f - f^* < 10^{-6}$, budget 10,000:
+
+| sweep | values → steps |
+| --- | --- |
+| Momentum β, Rosenbrock, $\eta = 10^{-3}$ | 0 → not reached ($f = 5.9\times10^{-5}$), 0.5 → 7518, 0.8 → 2958, 0.9 → 1386, 0.95 → 637, 0.99 → 1409 |
+| Momentum β, bowl, $\eta = 0.01$ | 0 → 791, 0.5 → 387, 0.8 → 114, 0.9 → 132, 0.95 → 279, 0.99 → 1238 |
+| Adam β₁, Rosenbrock, $\eta = 0.1$ | 0 → not reached ($f = 1.2$), 0.5 → not reached ($f = 9.8\times10^{-3}$), 0.9 → 1139, 0.99 → 1291 |
+| Adam β₂, Rosenbrock, $\eta = 0.1$ | 0.9 → not reached ($f = 3.5\times10^{-5}$), 0.99 → not reached ($f = 3.7\times10^{-3}$), 0.999 → 1139, 0.9999 → 1278 |
+| RMSProp ρ, Beale, $\eta = 10^{-3}$ | 0 → not reached ($f = 2.3\times10^{-4}$), 0.5 to 0.99 → not reached ($f = 9.0\times10^{-6}$), 0.999 → 8675 |
+| Adam ε, bowl, $\eta = 0.1$ | $10^{-8}$ to $10^{-2}$ → 149, 0.1 → 152, 1 → 167 |
+
+Momentum has a sweet spot on both surfaces (0.8 on the bowl, 0.95 on
+Rosenbrock), and past it the extra velocity costs steps. On Rosenbrock, Adam
+needs a long gradient memory: $\beta_1 \le 0.5$ or $\beta_2 \le 0.99$ does not
+converge within 10,000 steps at this $\eta$. RMSProp on Beale only gets to
+$10^{-6}$ with $\rho = 0.999$. ε barely matters until it reaches the gradient
+scale near the end of the run.
+
 ## Surfaces
 
 | surface | formula | minimum | what it tests |
@@ -259,6 +322,7 @@ specific surface.
 npm install
 npm test
 npm run race   # regenerate the results table
+npm run sweep  # regenerate the hyperparameter sweeps
 npm run dev
 ```
 
@@ -270,6 +334,7 @@ src/optimizers.ts  GD, momentum, Nesterov, RMSProp, Adam as pure step functions
 src/run.ts         run(surface, optimizer) → trajectory, steps to tolerance, divergence
 src/race.ts        learning-rate sweep and ranking used by the script and the demo
 scripts/race.ts    prints the results table (npm run race)
+scripts/sweep.ts   one-hyperparameter-at-a-time sweeps (npm run sweep)
 web/               the 2D race demo (Vite, canvas, no framework)
 test/              Vitest suite
 ```

@@ -20,7 +20,8 @@
     "race": "node --experimental-strip-types scripts/race.ts",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sweep": "node --experimental-strip-types scripts/sweep.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
