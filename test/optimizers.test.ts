@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   adam,
+  DEFAULT_HYPERPARAMS,
   initState,
   makeOptimizer,
   momentum,
@@ -168,5 +169,54 @@ describe("the saddle point x² − y²", () => {
     const r = run(saddle, momentum({ lr: eta, beta }), { steps: 40, start: [1, 1e-6] });
     const ys = r.points.map((p) => p[1]);
     expect(ys[40]! / ys[39]!).toBeCloseTo(lambda, 5);
+  });
+});
+
+describe("hyperparameters through makeOptimizer", () => {
+  it("uses the documented defaults when none are given", () => {
+    const a = run(quadratic, makeOptimizer("adam", 0.1), { steps: 50, tol: 0 });
+    const b = run(quadratic, adam({ lr: 0.1, beta1: 0.9, beta2: 0.999, eps: 1e-8 }), { steps: 50, tol: 0 });
+    expect(a.points).toEqual(b.points);
+    expect(DEFAULT_HYPERPARAMS).toEqual({ beta: 0.9, rho: 0.9, beta1: 0.9, beta2: 0.999, eps: 1e-8 });
+  });
+
+  it("momentum and Nesterov with β = 0 are plain gradient descent", () => {
+    const gd = run(quadratic, sgd({ lr: 0.05 }), { steps: 40, tol: 0 });
+    for (const id of ["momentum", "nesterov"] as const) {
+      const r = run(quadratic, makeOptimizer(id, 0.05, { beta: 0 }), { steps: 40, tol: 0 });
+      r.points.forEach((p, k) => {
+        expect(p[0]).toBeCloseTo(gd.points[k]![0], 12);
+        expect(p[1]).toBeCloseTo(gd.points[k]![1], 12);
+      });
+    }
+  });
+
+  it("passes ρ and ε to RMSProp: first step is η·g/(√((1−ρ)g²)+ε)", () => {
+    const s = makeOptimizer("rmsprop", 0.01, { rho: 0.5, eps: 1 }).step(initState([0, 0]), constGrad([2, 0]));
+    expect(s.params[0]).toBeCloseTo(-(0.01 * 2) / (Math.sqrt(0.5 * 4) + 1), 12);
+  });
+
+  it("passes β₁, β₂ and ε to Adam", () => {
+    const opt = makeOptimizer("adam", 0.1, { beta1: 0.5, beta2: 0.9, eps: 0 });
+    const s1 = opt.step(initState([0, 0]), constGrad([1, 0]));
+    expect(s1.m[0]).toBeCloseTo(0.5, 12);
+    expect(s1.v[0]).toBeCloseTo(0.1, 12);
+    const s2 = opt.step(s1, constGrad([3, 0]));
+    const mHat = (0.5 * 0.5 + 0.5 * 3) / (1 - 0.25);
+    const vHat = (0.9 * 0.1 + 0.1 * 9) / (1 - 0.81);
+    expect(s2.params[0]).toBeCloseTo(-0.1 - (0.1 * mHat) / Math.sqrt(vHat), 12);
+  });
+
+  it("a large ε turns Adam into momentum-SGD with step η·m̂/ε", () => {
+    const s = makeOptimizer("adam", 1, { eps: 1e3 }).step(initState([0, 0]), constGrad([2, 0]));
+    // m̂₁ = g = 2, √v̂₁ = 2, so the step is 2 / (2 + 1000)
+    expect(s.params[0]).toBeCloseTo(-2 / 1002, 12);
+  });
+
+  it("leaves unspecified hyperparameters at their defaults", () => {
+    const a = makeOptimizer("adam", 0.1, { beta1: undefined, eps: 1e-8 });
+    const b = adam({ lr: 0.1 });
+    const g = constGrad([0.3, -0.7]);
+    expect(a.step(initState([1, 1]), g)).toEqual(b.step(initState([1, 1]), g));
   });
 });

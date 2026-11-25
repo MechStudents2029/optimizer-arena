@@ -1,4 +1,4 @@
-import { makeOptimizer, optimizerIds, type OptimizerId } from "./optimizers.ts";
+import { makeOptimizer, optimizerIds, type Hyperparams, type OptimizerId } from "./optimizers.ts";
 import { run, type Trajectory } from "./run.ts";
 import type { Surface, Vec2 } from "./surfaces.ts";
 
@@ -14,6 +14,8 @@ export interface RaceOptions {
   lrGrid?: number[];
   /** Starting point; defaults to the surface's own start. */
   start?: Vec2;
+  /** β, ρ, β₁, β₂, ε shared by every run; defaults to the usual values. */
+  hyperparams?: Hyperparams;
 }
 
 export interface RaceEntry {
@@ -50,13 +52,13 @@ function better(a: RaceEntry, b: RaceEntry): boolean {
  * optimizers rather than one shared η that favours some of them.
  */
 export function race(surface: Surface, options: RaceOptions = {}): RaceEntry[] {
-  const { steps = 10_000, tol = 1e-6, lrGrid = LR_GRID, start } = options;
+  const { steps = 10_000, tol = 1e-6, lrGrid = LR_GRID, start, hyperparams } = options;
   const goalIsEscape = !Number.isFinite(surface.minValue);
   return optimizerIds.map((id) => {
     let best: RaceEntry = { optimizer: id, lr: null, steps: null, finalLoss: Infinity, trajectory: null };
     for (const lr of lrGrid) {
       // On the saddle, stop as soon as the optimizer is clearly past it.
-      const t = run(surface, makeOptimizer(id, lr), {
+      const t = run(surface, makeOptimizer(id, lr, hyperparams), {
         steps,
         tol,
         start,

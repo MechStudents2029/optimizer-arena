@@ -38,3 +38,18 @@ describe("race", () => {
     for (const e of entries) expect(e.trajectory!.points[0]).toEqual([1, 1]);
   });
 });
+
+describe("race with hyperparameters", () => {
+  it("forwards hyperparameters to every run", () => {
+    const strip = (es: ReturnType<typeof race>) => es.map(({ trajectory, ...e }) => e);
+    const base = race(quadratic, { steps: 2000 });
+    const sameAsDefault = race(quadratic, { steps: 2000, hyperparams: { beta: 0.9, rho: 0.9 } });
+    expect(strip(sameAsDefault)).toEqual(strip(base));
+    const lowBeta = race(quadratic, { steps: 2000, hyperparams: { beta: 0 } });
+    const hb = lowBeta.find((e) => e.optimizer === "momentum")!;
+    const gd = lowBeta.find((e) => e.optimizer === "sgd")!;
+    // with β = 0 heavy ball is GD, so it picks the same η and takes the same number of steps
+    expect(hb.lr).toBe(gd.lr);
+    expect(hb.steps).toBe(gd.steps);
+  });
+});

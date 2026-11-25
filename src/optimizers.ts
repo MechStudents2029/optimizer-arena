@@ -140,18 +140,45 @@ export type OptimizerId = "sgd" | "momentum" | "nesterov" | "rmsprop" | "adam";
 
 export const optimizerIds: OptimizerId[] = ["sgd", "momentum", "nesterov", "rmsprop", "adam"];
 
-/** Build any optimizer by id with a given learning rate and default hyperparameters. */
-export function makeOptimizer(id: OptimizerId, lr: number): Optimizer {
+/** Hyperparameters other than η. Anything left out keeps the optimizer's default. */
+export interface Hyperparams {
+  /** Momentum / Nesterov velocity decay β. */
+  beta?: number;
+  /** RMSProp squared-gradient decay ρ. */
+  rho?: number;
+  /** Adam first-moment decay β₁. */
+  beta1?: number;
+  /** Adam second-moment decay β₂. */
+  beta2?: number;
+  /** Denominator guard ε for RMSProp and Adam. */
+  eps?: number;
+}
+
+export const DEFAULT_HYPERPARAMS: Required<Hyperparams> = {
+  beta: 0.9,
+  rho: 0.9,
+  beta1: 0.9,
+  beta2: 0.999,
+  eps: 1e-8,
+};
+
+/** Build any optimizer by id with a learning rate and optional hyperparameters. */
+export function makeOptimizer(id: OptimizerId, lr: number, hp: Hyperparams = {}): Optimizer {
+  const h = { ...DEFAULT_HYPERPARAMS, ...stripUndefined(hp) };
   switch (id) {
     case "sgd":
       return sgd({ lr });
     case "momentum":
-      return momentum({ lr });
+      return momentum({ lr, beta: h.beta });
     case "nesterov":
-      return nesterov({ lr });
+      return nesterov({ lr, beta: h.beta });
     case "rmsprop":
-      return rmsprop({ lr });
+      return rmsprop({ lr, rho: h.rho, eps: h.eps });
     case "adam":
-      return adam({ lr });
+      return adam({ lr, beta1: h.beta1, beta2: h.beta2, eps: h.eps });
   }
+}
+
+function stripUndefined(hp: Hyperparams): Hyperparams {
+  return Object.fromEntries(Object.entries(hp).filter(([, v]) => v !== undefined)) as Hyperparams;
 }
