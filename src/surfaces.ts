@@ -113,7 +113,75 @@ export const himmelblau: Surface = {
   bounds: [-5, 5, -5, 5],
 };
 
-export const surfaces: Surface[] = [quadratic, rosenbrock, beale, saddle, himmelblau];
+const TAU = 2 * Math.PI;
+
+/**
+ * Rastrigin, A = 10: a bowl x² + y² with a cosine egg-crate on top. Every
+ * integer lattice point near the origin is a local minimum, so following the
+ * local gradient usually ends in the nearest dimple rather than at (0, 0).
+ */
+export const rastrigin: Surface = {
+  id: "rastrigin",
+  name: "Rastrigin",
+  formula: String.raw`f(x, y) = 20 + \left(x^2 - 10\cos 2\pi x\right) + \left(y^2 - 10\cos 2\pi y\right)`,
+  f: (x, y) => 20 + (x * x - 10 * Math.cos(TAU * x)) + (y * y - 10 * Math.cos(TAU * y)),
+  grad: (x, y) => [2 * x + 10 * TAU * Math.sin(TAU * x), 2 * y + 10 * TAU * Math.sin(TAU * y)],
+  minima: [[0, 0]],
+  minValue: 0,
+  start: [2.2, -1.7],
+  bounds: [-5.12, 5.12, -5.12, 5.12],
+};
+
+/**
+ * Ackley (a = 20, b = 0.2, c = 2π): nearly flat far from the origin, with a
+ * deep funnel at (0, 0) and small cosine ripples everywhere. The gradient of
+ * the √(x² + y²) term is undefined at the origin; we use its subgradient 0
+ * there, which is also where the minimum sits.
+ */
+export const ackley: Surface = {
+  id: "ackley",
+  name: "Ackley",
+  formula: String.raw`f(x, y) = -20\,e^{-0.2\sqrt{\frac{1}{2}(x^2 + y^2)}} - e^{\frac{1}{2}(\cos 2\pi x + \cos 2\pi y)} + e + 20`,
+  f: (x, y) =>
+    -20 * Math.exp(-0.2 * Math.sqrt(0.5 * (x * x + y * y))) -
+    Math.exp(0.5 * (Math.cos(TAU * x) + Math.cos(TAU * y))) +
+    Math.E +
+    20,
+  grad: (x, y) => {
+    const r = Math.sqrt(0.5 * (x * x + y * y));
+    // d/dx of −20·exp(−0.2r) = 20·0.2·exp(−0.2r)·∂r/∂x, with ∂r/∂x = x / (2r)
+    const a = r === 0 ? 0 : (2 * Math.exp(-0.2 * r)) / r;
+    const b = Math.exp(0.5 * (Math.cos(TAU * x) + Math.cos(TAU * y))) * 0.5 * TAU;
+    return [a * x + b * Math.sin(TAU * x), a * y + b * Math.sin(TAU * y)];
+  },
+  minima: [[0, 0]],
+  minValue: 0,
+  start: [3.3, -2.6],
+  bounds: [-5, 5, -5, 5],
+};
+
+/**
+ * Booth: a convex quadratic, (x + 2y − 7)² + (2x + y − 5)², with Hessian
+ * [[10, 8], [8, 10]] (eigenvalues 18 and 2, so κ = 9 along the diagonals).
+ * The easy control case: every method should get there.
+ */
+export const booth: Surface = {
+  id: "booth",
+  name: "Booth",
+  formula: String.raw`f(x, y) = (x + 2y - 7)^2 + (2x + y - 5)^2`,
+  f: (x, y) => (x + 2 * y - 7) ** 2 + (2 * x + y - 5) ** 2,
+  grad: (x, y) => {
+    const a = x + 2 * y - 7;
+    const b = 2 * x + y - 5;
+    return [2 * a + 4 * b, 4 * a + 2 * b];
+  },
+  minima: [[1, 3]],
+  minValue: 0,
+  start: [-6, -4],
+  bounds: [-10, 10, -10, 10],
+};
+
+export const surfaces: Surface[] = [quadratic, rosenbrock, beale, saddle, himmelblau, rastrigin, ackley, booth];
 
 export function surfaceById(id: string): Surface {
   const s = surfaces.find((s) => s.id === id);
