@@ -12,12 +12,20 @@ Written in TypeScript with no runtime dependencies. Work in progress.
 
 ![2D race on Rosenbrock: momentum, Nesterov and Adam reach the minimum while GD and RMSProp are still in the valley](docs/screenshots/rosenbrock.png)
 
-**[Live demo](https://optimizer-arena.vercel.app)** (or `npm run dev` locally) opens the 2D race: a log-scaled contour map of the surface, the
+**[Live demo](https://optimizer-arena.vercel.app)** (or `npm run dev` locally) opens the race on a log-scaled contour map of the surface, the
 five trajectories drawn step by step, and each optimizer's update rule beside
 its live step count and loss, with a loss-vs-step chart (log scale) below.
 Sliders set $\eta$, momentum $\beta$, RMSProp $\rho$, and Adam's $\beta_1$,
-$\beta_2$, $\epsilon$, and the race reruns live as you drag. Click the plot to
+$\beta_2$, $\epsilon$, and the race reruns live as you drag. Click the contour map to
 move the start point; the learning-rate sweep reruns from there in the browser.
+
+The **3D surface** toggle shows the same race on the surface itself: height is
+the loss (log-scaled on Rosenbrock and Beale), each path is drawn on the
+surface in its colour, drag orbits and the wheel zooms. It is a hand-rolled
+projection on canvas 2D with no 3D library; [how it works](#the-3d-view-how-a-surface-gets-onto-a-flat-canvas),
+and [frame by frame](docs/3d-view.md).
+
+![3D view of Rosenbrock in log height: the curved valley, with the five optimizer paths drawn on the surface](docs/screenshots/rosenbrock-3d.png)
 
 ## The problem
 
@@ -398,7 +406,9 @@ demo with `npm run build`, pushes to `main` deploy to
 [optimizer-arena.vercel.app](https://optimizer-arena.vercel.app), and pull
 requests get preview deploys. Links like
 [`?surface=saddle`](https://optimizer-arena.vercel.app/?surface=saddle) open a
-specific surface.
+specific surface, and adding `view=3d`
+([`?surface=rosenbrock&view=3d`](https://optimizer-arena.vercel.app/?surface=rosenbrock&view=3d))
+opens it in the 3D view.
 
 ## Quick start
 
@@ -417,9 +427,10 @@ src/surfaces.ts    loss surfaces, analytic gradients, known minima
 src/optimizers.ts  GD, momentum, Nesterov, RMSProp, Adam as pure step functions
 src/run.ts         run(surface, optimizer) → trajectory, steps to tolerance, divergence
 src/race.ts        learning-rate sweep and ranking used by the script and the demo
+src/view3d.ts      3D view math: rotations, perspective, height map, mesh, painter's order
 scripts/race.ts    prints the results table (npm run race)
 scripts/sweep.ts   one-hyperparameter-at-a-time sweeps (npm run sweep)
-web/               the 2D race demo (Vite, canvas, no framework)
+web/               the race demo, 2D contour and 3D surface (Vite, canvas, no framework)
 test/              Vitest suite
 ```
 
