@@ -1,5 +1,14 @@
 # Changelog
 
+## Day 3 — 2026-11-26
+
+- 3D surface view in the demo, toggled against the 2D contour map: height is the loss, each optimizer's path is drawn on the surface in its colour, drag orbits (yaw and pitch), the wheel zooms, double-click resets. It follows the same surface select, sliders, start point and animation, and `?view=3d` opens it directly.
+- No new dependencies: `src/view3d.ts` is a hand-rolled pipeline on canvas 2D. Rotation matrices R = Rₓ(pitch)·R_z(yaw), a perspective divide (x · F / depth), a 57 × 57 vertex mesh, quad normals with Lambert shading, and painter's-algorithm ordering. Path steps are cut into cell-sized pieces and sorted together with the quads, so a ridge in front hides a path behind it.
+- Heights switch to log(1 + f − f_lo) automatically when the range is more than 12× the median's rise above the minimum: Rosenbrock (≈ 17×) and Beale (≈ 431×) go log, the other six stay linear.
+- README: a section on the 3D math (rotation matrices, why the order matters, the perspective divide, painter's algorithm and its failure case, Lambert shading, why log heights). `docs/3d-view.md` follows one frame through the code, with measured costs (mesh 1.3 ms once per surface; projecting and sorting the mesh 0.7 ms per frame).
+- Screenshot of the 3D view in `docs/screenshots/rosenbrock-3d.png`, taken headlessly from the built demo.
+- 106 tests (from 79): known rotations, orthogonality, composition order, the perspective divide and its depth guard, far-to-near ordering from a tilted camera, linear and log height maps (including flat ranges, NaN and negative values), the automatic mode choice per surface, mesh size, bounds and vertex values, normals, and camera clamping.
+
 ## Day 2 — 2026-11-25
 
 - Three new surfaces in `src/surfaces.ts`, each with an analytic gradient, minimum, start point and plot window: Rastrigin (121 minima in the plot window, one global), Ackley (flat outer region around a deep funnel; subgradient 0 at the origin), and Booth (convex quadratic, κ = 9, the control case).
@@ -26,5 +35,5 @@
 
 - [x] Day 1: surfaces, five optimizers, race script, README math, 2D demo
 - [x] Day 2: optimizer hyperparameter controls (β, ρ, β₁, β₂, ε) in the demo, loss-vs-step chart, more surfaces (Rastrigin, Ackley, Booth)
-- [ ] Day 3: 3D surface view with trajectories in the browser
+- [x] Day 3: 3D surface view with trajectories in the browser
 - [ ] Day 4: AdaGrad, AdamW, Lion, and learning-rate schedules
