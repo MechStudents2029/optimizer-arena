@@ -169,3 +169,74 @@ describe("shading and painter's order", () => {
     expect(clampCamera(cam({ pitch: 1, distance: 0 }))).toMatchObject({ pitch: 0, distance: 2.5 });
   });
 });
+
+describe("edge cases", () => {
+  it("a full turn of yaw changes nothing, and half a turn mirrors x and y", () => {
+    const p: Vec3 = [0.4, -0.7, 0.3];
+    const a = project(p, cam({ pitch: -0.8 }));
+    const b = project(p, cam({ pitch: -0.8, yaw: 2 * Math.PI }));
+    expect(b.x).toBeCloseTo(a.x, 9);
+    expect(b.y).toBeCloseTo(a.y, 9);
+    close(apply(rotZ(Math.PI), p), [-0.4, 0.7, 0.3]);
+  });
+
+  it("a point at the camera's own depth stays finite instead of dividing by zero", () => {
+    const p = project([0.5, 0, HEIGHT / 2 + 5], cam());
+    expect(p.depth).toBeCloseTo(0, 12);
+    expect(Number.isFinite(p.x)).toBe(true);
+    expect(Number.isFinite(p.y)).toBe(true);
+  });
+
+  it("a flat range or a NaN maps to the floor", () => {
+    expect(heightMap(3, 3, "linear")(3)).toBe(0);
+    expect(heightMap(3, 3, "log")(100)).toBe(0);
+    expect(heightMap(0, 10, "linear")(NaN)).toBe(0);
+    expect(heightMap(0, 10, "log")(-Infinity)).toBe(0);
+  });
+
+  it("log mode works on negative values: only f − lo matters", () => {
+    const h = heightMap(-50, 50, "log");
+    expect(h(-50)).toBe(0);
+    expect(h(50)).toBeCloseTo(1, 12);
+    expect(h(0)).toBeCloseTo(Math.log1p(50) / Math.log1p(100), 12);
+  });
+
+  it("chooseHeightMode ignores non-finite samples and handles flat and spiky data", () => {
+    expect(chooseHeightMode([1, 2, 3, NaN, Infinity])).toBe("linear");
+    expect(chooseHeightMode([5, 5, 5])).toBe("linear");
+    expect(chooseHeightMode([0, 0, 0, 0, 1])).toBe("log"); // median sits on the floor
+    expect(chooseHeightMode([0, 1, 2, 3, 100], 12)).toBe("log");
+    expect(chooseHeightMode([0, 1, 2, 3, 100], 60)).toBe("linear");
+  });
+
+  it("every surface's mesh, the saddle included, stays inside [0, HEIGHT]", () => {
+    for (const id of ["quadratic", "rosenbrock", "beale", "saddle", "himmelblau", "rastrigin", "ackley", "booth"]) {
+      const m = buildMesh(surfaceById(id), 16);
+      for (const h of m.heights) {
+        expect(h).toBeGreaterThanOrEqual(0);
+        expect(h).toBeLessThanOrEqual(1);
+      }
+      expect(m.height(m.lo)).toBe(0);
+      expect(m.height(m.hi)).toBeCloseTo(1, 12);
+    }
+  });
+
+  it("an explicit height mode overrides the automatic choice", () => {
+    expect(buildMesh(surfaceById("rosenbrock"), 8, "linear").mode).toBe("linear");
+    expect(buildMesh(surfaceById("quadratic"), 8, "log").mode).toBe("log");
+  });
+
+  it("quadNormal tilts with the plane and falls back to up for a degenerate quad", () => {
+    // The plane z = x rises along x, so its upward normal leans towards −x: (−1, 0, 1)/√2.
+    const n = quadNormal([0, 0, 0], [1, 0, 1], [1, 1, 1], [0, 1, 0]);
+    close(n, [-Math.SQRT1_2, 0, Math.SQRT1_2]);
+    close(quadNormal([0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]), [0, 0, 1]);
+  });
+
+  it("the centre of the plot window maps to the centre of the floor", () => {
+    const s = surfaceById("beale");
+    const [x0, x1, y0, y1] = s.bounds;
+    expect(toWorldXY(s.bounds, (x0 + x1) / 2, (y0 + y1) / 2)).toEqual([0, 0]);
+    expect(painterOrder([])).toEqual([]);
+  });
+});
