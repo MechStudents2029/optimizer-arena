@@ -247,6 +247,88 @@ There is one minimum, at $(1, 3)$, and no traps. It is here as a control:
 any method that struggles on Booth has a bug or a bad learning rate, not a
 hard problem.
 
+## The 3D view: how a surface gets onto a flat canvas
+
+The 3D surface view uses no WebGL and no 3D library. It is about 150 lines of
+math in `src/view3d.ts` plus canvas 2D paths, and every step is a classic
+idea from computer graphics.
+
+**1. World coordinates.** The plot window $[x_0, x_1] \times [y_0, y_1]$ is
+rescaled to a floor $[-1, 1]^2$, and the loss becomes the height
+$z = H \cdot h(f) \in [0, H]$ with $H = 0.9$, where $h$ is the height map
+below. The surface is sampled on a $57 \times 57$ grid of vertices, giving
+$56^2 = 3136$ quads.
+
+**2. Rotation matrices.** Orbiting the camera is the same as rotating the
+world the other way. A drag left or right changes the yaw $\psi$, a spin about
+the vertical axis; a drag up or down changes the pitch $\phi$, a tilt about the
+screen's horizontal axis:
+
+$$
+R_z(\psi) = \begin{pmatrix} \cos\psi & -\sin\psi & 0 \\ \sin\psi & \cos\psi & 0 \\ 0 & 0 & 1 \end{pmatrix},
+\qquad
+R_x(\phi) = \begin{pmatrix} 1 & 0 & 0 \\ 0 & \cos\phi & -\sin\phi \\ 0 & \sin\phi & \cos\phi \end{pmatrix},
+\qquad
+v = R_x(\phi)\,R_z(\psi)\,(p - c).
+$$
+
+Order matters (matrix products do not commute): spinning first and tilting
+second keeps the tilt axis horizontal on screen, so the surface never rolls
+sideways. $c = (0, 0, H/2)$ is the point the camera orbits. Rotation matrices
+are orthogonal ($R^\top R = I$), so they never stretch the surface; a test
+checks this. $\phi = 0$ looks straight down (the contour map again), and $\phi$
+is clamped above $-\pi/2$ so the camera can never go under the floor.
+
+**3. Perspective divide.** In view space the camera sits on the $+z$ axis at
+distance $d$, looking down. A point with view coordinates $(v_x, v_y, v_z)$ is
+$\text{depth} = d - v_z$ away, and it lands on screen at
+
+$$
+s_x = c_x + \frac{F\,v_x}{d - v_z}, \qquad s_y = c_y - \frac{F\,v_y}{d - v_z},
+$$
+
+with focal length $F$ in pixels. Dividing by depth is the whole of perspective:
+something twice as far away is drawn half as big, which is why the near edge
+of the surface looks wider than the far one. ($s_y$ has a minus sign because
+canvas $y$ grows downwards.) The mouse wheel changes $d$, which is a zoom with
+real perspective rather than a flat scale.
+
+**4. Painter's algorithm.** Canvas 2D has no depth buffer: whatever is drawn
+last wins. So, like a painter, draw the farthest things first. Every quad gets
+the depth of its centre, the quads are sorted far to near, and nearer quads
+paint over farther ones. The optimizer paths join the same sort: each step is
+cut into pieces about one grid cell long, each piece sorts by its own depth
+(with a small bias towards the camera so it beats the quad it lies on), so a
+ridge in front of a path hides it, as it should. Sorting by centre depth can
+misorder two long, steep, overlapping quads; with small quads on a smooth
+surface this hardly shows, which is the usual trade the algorithm makes against
+a per-pixel z-buffer.
+
+**5. Shading.** Each quad's normal is the normalised cross product of its two
+diagonals, $n = (c - a) \times (d - b) / \lVert\cdot\rVert$ (this works even when
+the four corners are not coplanar). Brightness is Lambert's cosine law,
+$\text{ambient} + (1 - \text{ambient}) \max(0, n \cdot \ell)$, for a fixed
+light direction $\ell$. Without it a surface of one colour has no visible
+shape at all.
+
+**6. Why log heights.** On Rosenbrock's plot window $f$ runs from $0$ to about
+$2509$, but the median sample is about $149$ and the valley the optimizers
+crawl along is below $1$. Drawn linearly, the valley would be a flat sheet a
+fraction of a pixel tall and all the drama would be in the corners. The height
+map is
+
+$$
+h(f) = \frac{\log(1 + f - f_{lo})}{\log(1 + f_{hi} - f_{lo})},
+$$
+
+which gives equal height to equal ratios, the same reason the loss chart
+uses a log axis. It is chosen automatically when $(f_{hi} - f_{lo}) / (f_{med} - f_{lo}) > 12$,
+which picks log for Rosenbrock (≈ 17) and Beale (≈ 431) and keeps linear
+heights for the bowl, Himmelblau, Rastrigin, Ackley, Booth and the saddle, whose shapes read
+correctly as they are. The label in the corner of the view says which one is
+in use. Trajectory points use the same map, so a path lies on the surface it
+is descending.
+
 ## Results
 
 Every optimizer was run on every surface with each learning rate in
