@@ -8,6 +8,20 @@ import {
   type Surface,
   type Vec2,
 } from "../src/index.ts";
+import {
+  HEIGHT,
+  buildMesh,
+  clampCamera,
+  lambert,
+  painterOrder,
+  project,
+  quadNormal,
+  toWorldXY,
+  viewMatrix,
+  type Camera,
+  type Mesh,
+  type Vec3,
+} from "../src/view3d.ts";
 
 const COLORS: Record<string, string> = {
   sgd: "#e6e8ee",
@@ -174,6 +188,171 @@ function draw(): void {
   ctx.stroke();
 }
 
+// ---- 3D surface view ----------------------------------------------------------
+// The math (rotations, perspective, height map, mesh, painter's order) lives in
+// src/view3d.ts; this part only turns it into canvas paths.
+type View = "2d" | "3d";
+let view: View = "2d";
+const MESH_N = 56;
+const LIGHT: Vec3 = (() => {
+  const l: Vec3 = [-0.45, -0.55, 0.7];
+  const n = Math.hypot(...l);
+  return [l[0] / n, l[1] / n, l[2] / n];
+})();
+const DEFAULT_CAMERA: Camera = { yaw: -0.6, pitch: -1.0, distance: 4.4, focal: 920, cx: W / 2, cy: H / 2 + 10 };
+let camera: Camera = { ...DEFAULT_CAMERA };
+let mesh: Mesh | null = null;
+/** Per-quad base colour (from height) and brightness (from the fixed light), cached per surface. */
+let quadShade: { rgb: Vec3; light: number }[] = [];
+
+function buildSurface3d(): void {
+  mesh = buildMesh(surface, MESH_N);
+  const m = mesh;
+  quadShade = m.quads.map((q) => {
+    const [a, b, c, d] = q.map((i) => m.vertices[i]!) as [Vec3, Vec3, Vec3, Vec3];
+    const t = (a[2] + b[2] + c[2] + d[2]) / (4 * HEIGHT);
+    // Same blue → violet → warm ramp as the contour map, brightened for shading.
+    const rgb: Vec3 = [30 + 170 * t, 40 + 90 * t, 90 + 150 * (1 - t) * t * 2 + 40 * t];
+    return { rgb, light: lambert(quadNormal(a, b, c, d), LIGHT) };
+  });
+}
+
+/** World position of a trajectory point: on the floor grid at (x, y), lifted to its loss height. */
+function worldPoint(p: Vec2, f: number, h: (f: number) => number): Vec3 {
+  const [wx, wy] = toWorldXY(surface.bounds, p[0], p[1]);
+  return [Math.min(1, Math.max(-1, wx)), Math.min(1, Math.max(-1, wy)), h(f) * HEIGHT + 0.012];
+}
+
+function draw3d(): void {
+  if (!mesh) buildSurface3d();
+  const m = mesh!;
+  const R = viewMatrix(camera);
+  const proj = m.vertices.map((v) => project(v, camera, R));
+
+  // Everything that can hide something else goes into one list, sorted far → near.
+  type Item = { depth: number; paint: () => void };
+  const items: Item[] = [];
+  m.quads.forEach((q, k) => {
+    const [a, b, c, d] = q.map((i) => proj[i]!) as [typeof proj[0], typeof proj[0], typeof proj[0], typeof proj[0]];
+    const { rgb, light } = quadShade[k]!;
+    const col = `rgb(${rgb[0] * light | 0},${rgb[1] * light | 0},${rgb[2] * light | 0})`;
+    const edge = `rgb(${rgb[0] * light * 0.78 | 0},${rgb[1] * light * 0.78 | 0},${rgb[2] * light * 0.78 | 0})`;
+    items.push({
+      depth: (a.depth + b.depth + c.depth + d.depth) / 4,
+      paint: () => {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.lineTo(c.x, c.y);
+        ctx.lineTo(d.x, d.y);
+        ctx.closePath();
+        ctx.fillStyle = col;
+        ctx.fill();
+        ctx.strokeStyle = edge;
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+      },
+    });
+  });
+
+  // Trajectory segments join the same sort, so a ridge in front can hide a path behind it.
+  // Long jumps are split into short pieces so each piece sorts against the quads it crosses,
+  // and every piece gets a small bias towards the camera so it wins against the quad under it.
+  const cell = 2 / MESH_N;
+  const heads: { p: Vec3; color: string }[] = [];
+  for (const e of entries) {
+    const t = e.trajectory;
+    if (!t) continue;
+    const n = Math.min(t.points.length, frame + 1);
+    const color = COLORS[e.optimizer]!;
+    const stride = Math.max(1, Math.floor(n / 600));
+    let prev = worldPoint(t.points[0]!, t.losses[0]!, m.height);
+    for (let k = stride; k < n + stride - 1; k += stride) {
+      const idx = Math.min(k, n - 1);
+      const cur = worldPoint(t.points[idx]!, t.losses[idx]!, m.height);
+      const len = Math.hypot(cur[0] - prev[0], cur[1] - prev[1], cur[2] - prev[2]);
+      const pieces = Math.min(12, Math.max(1, Math.ceil(len / (1.5 * cell))));
+      for (let s = 0; s < pieces; s++) {
+        const lerp = (u: number): Vec3 => [
+          prev[0] + (cur[0] - prev[0]) * u,
+          prev[1] + (cur[1] - prev[1]) * u,
+          prev[2] + (cur[2] - prev[2]) * u,
+        ];
+        const p0 = project(lerp(s / pieces), camera, R);
+        const p1 = project(lerp((s + 1) / pieces), camera, R);
+        items.push({
+          depth: (p0.depth + p1.depth) / 2 - 0.03,
+          paint: () => {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2.2;
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.moveTo(p0.x, p0.y);
+            ctx.lineTo(p1.x, p1.y);
+            ctx.stroke();
+          },
+        });
+      }
+      prev = cur;
+    }
+    if (n > 0) heads.push({ p: worldPoint(t.points[n - 1]!, t.losses[n - 1]!, m.height), color });
+  }
+
+  ctx.fillStyle = "#171a21";
+  ctx.fillRect(0, 0, W, H);
+  for (const i of painterOrder(items.map((it) => it.depth))) items[i]!.paint();
+
+  // Markers sit on top of everything: minima (white ×), the start (ring), and each optimizer's head.
+  for (const mn of surface.minima) {
+    const q = project(worldPoint(mn, surface.f(mn[0], mn[1]), m.height), camera, R);
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(q.x - 5, q.y - 5);
+    ctx.lineTo(q.x + 5, q.y + 5);
+    ctx.moveTo(q.x + 5, q.y - 5);
+    ctx.lineTo(q.x - 5, q.y + 5);
+    ctx.stroke();
+  }
+  const s0 = project(worldPoint(start, surface.f(start[0], start[1]), m.height), camera, R);
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(s0.x, s0.y, 7, 0, 2 * Math.PI);
+  ctx.stroke();
+  for (const { p, color } of heads) {
+    const q = project(p, camera, R);
+    ctx.fillStyle = color;
+    ctx.strokeStyle = "#0f1115";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(q.x, q.y, 5.5, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  ctx.font = "15px ui-monospace, Menlo, monospace";
+  ctx.fillStyle = "#8b93a7";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText(m.mode === "log" ? "height: log(1 + f − f_lo), log-scaled" : "height: f, linear", 12, 12);
+  ctx.textAlign = "right";
+  ctx.fillText("drag: orbit · wheel: zoom · double-click: reset", W - 12, H - 26);
+}
+
+function render(): void {
+  if (view === "3d") draw3d();
+  else draw();
+}
+
+function setView(v: View): void {
+  view = v;
+  $("view-2d").setAttribute("aria-pressed", String(v === "2d"));
+  $("view-3d").setAttribute("aria-pressed", String(v === "3d"));
+  canvas.classList.toggle("orbit", v === "3d");
+  render();
+}
+
 function updateLegend(): void {
   legendBody.innerHTML = "";
   for (const e of entries) {
@@ -276,7 +455,7 @@ function drawChart(longest: number): void {
 function tick(): void {
   const longest = Math.max(0, ...entries.map((e) => (e.trajectory?.points.length ?? 1) - 1));
   frame = Math.min(longest, frame + Number(speedSelect.value));
-  draw();
+  render();
   updateLegend();
   drawChart(longest);
   if (frame < longest) raf = requestAnimationFrame(tick);
@@ -302,6 +481,7 @@ function selectSurface(id: string): void {
   surface = surfaceById(id);
   start = surface.start;
   background = renderBackground();
+  mesh = null;
   restart();
 }
 
@@ -321,13 +501,57 @@ $("reset").addEventListener("click", () => {
   resetSliders();
   rerun();
 });
+$("view-2d").addEventListener("click", () => setView("2d"));
+$("view-3d").addEventListener("click", () => setView("3d"));
+
+// 3D: drag to orbit (horizontal = yaw, vertical = pitch), wheel to zoom, double-click to reset.
+let drag: { x: number; y: number } | null = null;
+canvas.addEventListener("pointerdown", (ev) => {
+  if (view !== "3d") return;
+  drag = { x: ev.clientX, y: ev.clientY };
+  canvas.setPointerCapture(ev.pointerId);
+  canvas.classList.add("dragging");
+});
+canvas.addEventListener("pointermove", (ev) => {
+  if (!drag) return;
+  camera = clampCamera({
+    ...camera,
+    yaw: camera.yaw + (ev.clientX - drag.x) * 0.01,
+    pitch: camera.pitch + (ev.clientY - drag.y) * 0.008,
+  });
+  drag = { x: ev.clientX, y: ev.clientY };
+  render();
+});
+const endDrag = () => {
+  drag = null;
+  canvas.classList.remove("dragging");
+};
+canvas.addEventListener("pointerup", endDrag);
+canvas.addEventListener("pointercancel", endDrag);
+canvas.addEventListener(
+  "wheel",
+  (ev) => {
+    if (view !== "3d") return;
+    ev.preventDefault();
+    camera = clampCamera({ ...camera, distance: camera.distance * Math.exp(ev.deltaY * 0.001) });
+    render();
+  },
+  { passive: false },
+);
+canvas.addEventListener("dblclick", () => {
+  if (view !== "3d") return;
+  camera = { ...DEFAULT_CAMERA };
+  render();
+});
+
 canvas.addEventListener("click", (ev) => {
+  if (view !== "2d") return;
   const r = canvas.getBoundingClientRect();
   start = fromPx(((ev.clientX - r.left) / r.width) * W, ((ev.clientY - r.top) / r.height) * H);
   restart();
 });
 
-// ?surface=rosenbrock&speed=256 opens a specific surface (handy for links and screenshots).
+// ?surface=rosenbrock&speed=256&view=3d opens a specific surface (handy for links and screenshots).
 const query = new URLSearchParams(location.search);
 const requested = query.get("surface");
 const speed = query.get("speed");
@@ -335,3 +559,4 @@ if (speed && [...speedSelect.options].some((o) => o.value === speed)) speedSelec
 if (requested && surfaces.some((s) => s.id === requested)) surfaceSelect.value = requested;
 resetSliders();
 selectSurface(surfaceSelect.value);
+if (query.get("view") === "3d") setView("3d");

@@ -9,12 +9,13 @@
   </head>
   <body>
     <header>
-      <h1>optimizer-arena <span>2D race</span></h1>
+      <h1>optimizer-arena <span>race in 2D and 3D</span></h1>
       <p>
         Five optimizers start from the same point on a loss surface. By default each
         one uses the learning rate that suits it best on that surface; untick
         "tune η" to give them all the same η. Drag the sliders to change β, ρ,
-        β₁, β₂ and ε and the race reruns live. Click the plot to move the start point.
+        β₁, β₂ and ε and the race reruns live. Click the contour map to move the start
+        point, or switch to the 3D view to see the surface itself: drag to orbit, scroll to zoom.
       </p>
     </header>
 
@@ -33,6 +34,13 @@
           <option value="256">256</option>
         </select>
       </label>
+      <div class="field">
+        View
+        <div class="seg" role="group" aria-label="View">
+          <button id="view-2d" type="button" aria-pressed="true">2D contour</button>
+          <button id="view-3d" type="button" aria-pressed="false">3D surface</button>
+        </div>
+      </div>
       <button id="replay" type="button">Replay</button>
       <span id="formula"></span>
     </form>
