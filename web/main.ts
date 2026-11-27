@@ -1,10 +1,16 @@
 import {
   DEFAULT_HYPERPARAMS,
+  SCHEDULE_NAMES,
+  SCHEDULE_RULES,
+  optimizerIds,
   race,
+  scheduleIds,
   surfaces,
   surfaceById,
   type Hyperparams,
+  type OptimizerId,
   type RaceEntry,
+  type ScheduleId,
   type Surface,
   type Vec2,
 } from "../src/index.ts";
@@ -29,6 +35,9 @@ const COLORS: Record<string, string> = {
   nesterov: "#3ea8ff",
   rmsprop: "#c678dd",
   adam: "#f5a524",
+  adagrad: "#e06c75",
+  adamw: "#d19a66",
+  lion: "#56d4c8",
 };
 const NAMES: Record<string, string> = {
   sgd: "Gradient descent",
@@ -36,6 +45,9 @@ const NAMES: Record<string, string> = {
   nesterov: "Nesterov",
   rmsprop: "RMSProp",
   adam: "Adam",
+  adagrad: "AdaGrad",
+  adamw: "AdamW",
+  lion: "Lion",
 };
 const RULES: Record<string, string> = {
   sgd: "θ ← θ − η∇f(θ)",
@@ -43,6 +55,9 @@ const RULES: Record<string, string> = {
   nesterov: "v ← βv − η∇f(θ + βv);  θ ← θ + v",
   rmsprop: "s ← ρs + (1−ρ)g²;  θ ← θ − ηg/(√s + ε)",
   adam: "m ← β₁m + (1−β₁)g;  v ← β₂v + (1−β₂)g²;  θ ← θ − η·m̂/(√v̂ + ε)",
+  adagrad: "G ← G + g²;  θ ← θ − ηg/(√G + ε)",
+  adamw: "Adam's m̂, v̂;  θ ← θ − η(m̂/(√v̂ + ε) + λθ)",
+  lion: "c = β₁m + (1−β₁)g;  θ ← θ − η·sign(c);  m ← β₂m + (1−β₂)g",
 };
 const FORMULAS: Record<string, string> = {
   quadratic: "f = ½(x² + 10y²)",
@@ -75,18 +90,30 @@ const sliders = {
   beta1: { el: $<HTMLInputElement>("beta1"), to: (u: number) => u, from: (v: number) => v },
   beta2: { el: $<HTMLInputElement>("beta2"), to: (u: number) => 1 - 10 ** u, from: (v: number) => Math.log10(1 - v) },
   eps: { el: $<HTMLInputElement>("eps"), to: (u: number) => 10 ** u, from: (v: number) => Math.log10(v) },
+  weightDecay: { el: $<HTMLInputElement>("weightDecay"), to: (u: number) => 10 ** u, from: (v: number) => Math.log10(v) },
+  lionBeta1: { el: $<HTMLInputElement>("lionBeta1"), to: (u: number) => u, from: (v: number) => v },
+  lionBeta2: { el: $<HTMLInputElement>("lionBeta2"), to: (u: number) => u, from: (v: number) => v },
 };
 type SliderKey = keyof typeof sliders;
 const DEFAULT_LR = 0.01;
 
 const value = (k: SliderKey) => sliders[k].to(Number(sliders[k].el.value));
 const fmt = (k: SliderKey, v: number): string => {
-  if (k === "eps" || k === "lr") return v >= 0.01 ? String(+v.toPrecision(2)) : v.toExponential(1);
-  if (k === "beta2") return String(+v.toFixed(4));
+  if (k === "eps" || k === "lr" || k === "weightDecay") return v >= 0.01 ? String(+v.toPrecision(2)) : v.toExponential(1);
+  if (k === "beta2" || k === "lionBeta2") return String(+v.toFixed(4));
   return String(+v.toFixed(3));
 };
 function readHyperparams(): Hyperparams {
-  return { beta: value("beta"), rho: value("rho"), beta1: value("beta1"), beta2: value("beta2"), eps: value("eps") };
+  return {
+    beta: value("beta"),
+    rho: value("rho"),
+    beta1: value("beta1"),
+    beta2: value("beta2"),
+    eps: value("eps"),
+    weightDecay: value("weightDecay"),
+    lionBeta1: value("lionBeta1"),
+    lionBeta2: value("lionBeta2"),
+  };
 }
 function showSliderValues(): void {
   for (const k of Object.keys(sliders) as SliderKey[]) $(`${k}-out`).textContent = fmt(k, value(k));
@@ -100,6 +127,27 @@ function resetSliders(): void {
 }
 
 for (const s of surfaces) surfaceSelect.add(new Option(s.name, s.id));
+
+// ---- learning-rate schedule and which optimizers race ---------------------------
+const scheduleSelect = $<HTMLSelectElement>("schedule");
+for (const id of scheduleIds) scheduleSelect.add(new Option(SCHEDULE_NAMES[id], id));
+const racers = $<HTMLFieldSetElement>("racers");
+const racerBoxes = new Map<OptimizerId, HTMLInputElement>();
+for (const id of optimizerIds) {
+  const label = document.createElement("label");
+  label.className = "check";
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  box.checked = true;
+  box.value = id;
+  const swatch = document.createElement("span");
+  swatch.className = "swatch";
+  swatch.style.background = COLORS[id]!;
+  label.append(box, swatch, ` ${NAMES[id]}`);
+  racers.append(label);
+  racerBoxes.set(id, box);
+}
+const selectedRacers = (): OptimizerId[] => optimizerIds.filter((id) => racerBoxes.get(id)!.checked);
 
 let surface: Surface = surfaces[0]!;
 let start: Vec2 = surface.start;
@@ -465,10 +513,18 @@ function restart(): void {
   cancelAnimationFrame(raf);
   const saddle = !Number.isFinite(surface.minValue);
   const lrGrid = saddle ? [0.01] : tune.checked ? undefined : [value("lr")];
-  entries = race(surface, { steps: 3000, start, lrGrid, hyperparams: readHyperparams() });
+  const schedule = scheduleSelect.value as ScheduleId;
+  entries = race(surface, {
+    steps: 3000,
+    start,
+    lrGrid,
+    hyperparams: readHyperparams(),
+    schedule,
+    optimizers: selectedRacers(),
+  });
   showSliderValues();
   frame = 0;
-  $("formula").textContent = FORMULAS[surface.id] ?? "";
+  $("formula").textContent = `${FORMULAS[surface.id] ?? ""}   ·   ${SCHEDULE_RULES[schedule]}`;
   $("note").textContent = saddle
     ? "The saddle has no minimum, so every optimizer uses η = 0.01 and the race ends when f < −1. Start exactly on the x-axis and nobody escapes."
     : tune.checked
@@ -497,6 +553,8 @@ const rerun = () => {
 };
 for (const { el } of Object.values(sliders)) el.addEventListener("input", rerun);
 tune.addEventListener("change", rerun);
+scheduleSelect.addEventListener("change", rerun);
+racers.addEventListener("change", rerun);
 $("reset").addEventListener("click", () => {
   resetSliders();
   rerun();
@@ -551,8 +609,15 @@ canvas.addEventListener("click", (ev) => {
   restart();
 });
 
-// ?surface=rosenbrock&speed=256&view=3d opens a specific surface (handy for links and screenshots).
+// ?surface=rosenbrock&speed=256&view=3d&schedule=cosine&only=adam,adamw,lion opens a specific
+// setup (handy for links and screenshots).
 const query = new URLSearchParams(location.search);
+const sched = query.get("schedule");
+if (sched && (scheduleIds as string[]).includes(sched)) scheduleSelect.value = sched;
+const only = query.get("only")?.split(",");
+if (only?.some((id) => racerBoxes.has(id as OptimizerId))) {
+  for (const [id, box] of racerBoxes) box.checked = only.includes(id);
+}
 const requested = query.get("surface");
 const speed = query.get("speed");
 if (speed && [...speedSelect.options].some((o) => o.value === speed)) speedSelect.value = speed;

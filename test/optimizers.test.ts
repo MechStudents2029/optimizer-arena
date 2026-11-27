@@ -4,6 +4,7 @@ import {
   DEFAULT_HYPERPARAMS,
   initState,
   makeOptimizer,
+  makeSchedule,
   momentum,
   nesterov,
   optimizerIds,
@@ -108,8 +109,12 @@ describe("single steps against hand-computed values", () => {
 });
 
 describe("convergence on the convex quadratic", () => {
+  // AdaGrad's step shrinks like 1/√t, so it needs a larger η; Lion's fixed-size
+  // sign step needs a decaying schedule to settle (both covered in optimizers-day4.test.ts).
   it.each(optimizerIds)("%s reaches f < 1e-6 from (−4, 2)", (id) => {
-    const r = run(quadratic, makeOptimizer(id, 0.05), { steps: 3000, tol: 1e-6 });
+    const lr = id === "adagrad" ? 1 : 0.05;
+    const schedule = id === "lion" ? makeSchedule("cosine", 3000) : undefined;
+    const r = run(quadratic, makeOptimizer(id, lr, {}, schedule), { steps: 3000, tol: 1e-6 });
     expect(r.diverged).toBe(false);
     expect(r.stepsToTol).not.toBeNull();
     expect(r.finalLoss).toBeLessThan(1e-6);
@@ -177,7 +182,16 @@ describe("hyperparameters through makeOptimizer", () => {
     const a = run(quadratic, makeOptimizer("adam", 0.1), { steps: 50, tol: 0 });
     const b = run(quadratic, adam({ lr: 0.1, beta1: 0.9, beta2: 0.999, eps: 1e-8 }), { steps: 50, tol: 0 });
     expect(a.points).toEqual(b.points);
-    expect(DEFAULT_HYPERPARAMS).toEqual({ beta: 0.9, rho: 0.9, beta1: 0.9, beta2: 0.999, eps: 1e-8 });
+    expect(DEFAULT_HYPERPARAMS).toEqual({
+      beta: 0.9,
+      rho: 0.9,
+      beta1: 0.9,
+      beta2: 0.999,
+      eps: 1e-8,
+      weightDecay: 0.01,
+      lionBeta1: 0.9,
+      lionBeta2: 0.99,
+    });
   });
 
   it("momentum and Nesterov with β = 0 are plain gradient descent", () => {

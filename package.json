@@ -1,7 +1,7 @@
 {
   "name": "optimizer-arena",
   "version": "0.1.0",
-  "description": "Gradient descent, momentum, Nesterov, RMSProp, and Adam racing on classic loss surfaces, with the update-rule math beside each.",
+  "description": "Gradient descent, momentum, Nesterov, RMSProp, Adam, AdaGrad, AdamW, and Lion racing on classic loss surfaces with learning-rate schedules, with the update-rule math beside each.",
   "type": "module",
   "license": "MIT",
   "author": "Adam Rouzaqui",

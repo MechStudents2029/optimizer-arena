@@ -24,13 +24,18 @@ describe("race", () => {
     expect(none!.lr).toBeNull();
   });
 
-  it("on the saddle at a shared η, every momentum or adaptive method escapes before GD", () => {
+  it("on the saddle at a shared η, every momentum or adaptive method escapes before GD — except AdaGrad", () => {
     const entries = race(saddle, { steps: 2000, lrGrid: [0.01] });
     const gd = entries.find((e) => e.optimizer === "sgd")!;
     expect(gd.steps).not.toBeNull();
-    for (const e of entries.filter((e) => e.optimizer !== "sgd")) {
+    for (const e of entries.filter((e) => e.optimizer !== "sgd" && e.optimizer !== "adagrad")) {
       expect(e.steps!).toBeLessThan(gd.steps!);
     }
+    // AdaGrad normalises by the accumulated gradient, so y grows like 2√2·η·√t
+    // instead of geometrically: f < −1 needs t ≳ 1/(8η²) = 1250 steps.
+    const ada = entries.find((e) => e.optimizer === "adagrad")!;
+    expect(ada.steps!).toBeGreaterThan(1250);
+    expect(ada.steps!).toBeGreaterThan(gd.steps!);
   });
 
   it("honours a custom start point", () => {
@@ -55,8 +60,9 @@ describe("race with hyperparameters", () => {
 });
 
 describe("the Day 2 surfaces in a race", () => {
-  it("Booth: every optimizer reaches f < 1e-6 and ends next to (1, 3)", () => {
-    for (const e of race(booth, { steps: 2000 })) {
+  it("Booth: every optimizer except AdamW reaches f < 1e-6 and ends next to (1, 3)", () => {
+    // AdamW's decay pulls θ toward 0, which moves its fixed point off (1, 3).
+    for (const e of race(booth, { steps: 2000, optimizers: optimizerIds.filter((id) => id !== "adamw") })) {
       expect(e.steps).not.toBeNull();
       const [x, y] = e.trajectory!.final;
       expect(Math.hypot(x - 1, y - 3)).toBeLessThan(1e-3);
