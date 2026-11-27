@@ -607,7 +607,12 @@ requests get preview deploys. Links like
 [`?surface=saddle`](https://optimizer-arena.vercel.app/?surface=saddle) open a
 specific surface, and adding `view=3d`
 ([`?surface=rosenbrock&view=3d`](https://optimizer-arena.vercel.app/?surface=rosenbrock&view=3d))
-opens it in the 3D view.
+opens it in the 3D view. `schedule=` picks the learning-rate schedule and
+`only=` the racers, so
+[`?surface=himmelblau&schedule=cosine&only=adam,adagrad,adamw,lion`](https://optimizer-arena.vercel.app/?surface=himmelblau&schedule=cosine&only=adam,adagrad,adamw,lion)
+races just the Day 4 comparison: Lion, which cannot reach Himmelblau's
+off-lattice minimum at a constant rate (it ends at $f = 1.1\times10^{-4}$ in the
+demo's 3,000-step budget), gets there under cosine annealing in 2,139 steps.
 
 ## Quick start
 
@@ -615,7 +620,7 @@ opens it in the 3D view.
 npm install
 npm test
 npm run race   # regenerate the results table (add -- --schedule cosine, -- --start-off-lattice)
-npm run sweep  # regenerate the hyperparameter sweeps
+npm run sweep  # regenerate the hyperparameter sweeps (add -- --schedule cosine)
 npm run dev
 ```
 
@@ -630,6 +635,7 @@ src/race.ts        learning-rate sweep and ranking used by the script and the de
 src/view3d.ts      3D view math: rotations, perspective, height map, mesh, painter's order
 scripts/race.ts    prints the results table (npm run race)
 scripts/sweep.ts   one-hyperparameter-at-a-time sweeps (npm run sweep)
+docs/              measured tables and derivations: race results, sweeps, LR schedules, saddle escape, 3D view
 web/               the race demo, 2D contour and 3D surface (Vite, canvas, no framework)
 test/              Vitest suite
 ```
