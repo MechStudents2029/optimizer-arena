@@ -1,5 +1,16 @@
 # Changelog
 
+## Day 4 — 2026-11-27
+
+- Three new optimizers in `src/optimizers.ts`, pure `step(state, grad) → state` like the rest: AdaGrad (running sum of g², so the step only shrinks: exactly η/√k under a constant gradient), AdamW (Adam with decoupled weight decay, λ = 0.01), and Lion (sign of β₁m + (1−β₁)g, momentum tracked with β₂ = 0.99, one state buffer instead of two).
+- Learning-rate schedules in `src/schedules.ts`: constant, step decay (×0.5 every tenth of the budget), cosine annealing, and linear warmup (5%) + cosine. Every optimizer factory and `makeOptimizer` take a `schedule`; `race()` takes `schedule`, stretched over its step budget, and `optimizers` to race a subset.
+- Scripts: `npm run race -- --schedule <id>` and `--start-off-lattice`; `npm run sweep -- --schedule <id>`, plus new sweeps for AdamW λ, AdaGrad ε, and Lion β₁ and β₂.
+- Demo: LR schedule selector, sliders for AdamW λ and Lion's two betas, a "Racers" row to tick optimizers on and off, and `?schedule=cosine&only=adam,adamw,lion` links.
+- README: derivations for AdaGrad (why its step shrinks; √t growth on the saddle, so escaping takes about 1/(8η²) = 1250 steps at η = 0.01, measured 1440), AdamW (why decoupled decay is not L2-in-Adam: on a flat loss L2 steps by η·sign(θ) for any λ), Lion (sign update, the two betas, half the optimizer memory, and its η-lattice), and each schedule. Results table rerun with all eight optimizers.
+- `docs/lr-schedules.md`: the race under every schedule, on standard and off-lattice starts. With cosine annealing GD finds Rastrigin's global minimum (7,406 steps); RMSProp converges on Rosenbrock (8,370) where a constant rate stalls; warmup lets momentum and Nesterov use η = 0.1 on Beale (127 and 117 steps, against 405 and 403).
+- Measured with a constant rate: AdaGrad is fastest on Himmelblau (16 steps); AdamW needs 8,910 steps on Booth against 93 at λ = 0, because decay moves its fixed point; Lion's 4-step bowl and 7-step Booth are lattice hits from integer starts, and off the lattice the bowl takes 3,999 steps.
+- 149 tests (from 106): hand-computed first and second steps for all three optimizers, AdaGrad's η/√k steps, AdamW = Adam at λ = 0, decoupled vs L2 decay on a flat loss, Lion's scale-free steps, unused second buffer and lattice landing, convergence on the convex bowl, every schedule's shape and defaults, schedule timing inside a step, and edge cases (overflowing g², NaN gradients, γ = 1, one-step warmup, schedule-scaled decay).
+
 ## Day 3 — 2026-11-26
 
 - 3D surface view in the demo, toggled against the 2D contour map: height is the loss, each optimizer's path is drawn on the surface in its colour, drag orbits (yaw and pitch), the wheel zooms, double-click resets. It follows the same surface select, sliders, start point and animation, and `?view=3d` opens it directly.
@@ -36,4 +47,4 @@
 - [x] Day 1: surfaces, five optimizers, race script, README math, 2D demo
 - [x] Day 2: optimizer hyperparameter controls (β, ρ, β₁, β₂, ε) in the demo, loss-vs-step chart, more surfaces (Rastrigin, Ackley, Booth)
 - [x] Day 3: 3D surface view with trajectories in the browser
-- [ ] Day 4: AdaGrad, AdamW, Lion, and learning-rate schedules
+- [x] Day 4: AdaGrad, AdamW, Lion, and learning-rate schedules
