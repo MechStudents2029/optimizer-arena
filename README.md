@@ -331,6 +331,11 @@ every table). Steps to $f - f^* < 10^{-6}$, budget 10,000:
 | Adam β₂, Rosenbrock, $\eta = 0.1$ | 0.9 → not reached ($f = 3.5\times10^{-5}$), 0.99 → not reached ($f = 3.7\times10^{-3}$), 0.999 → 1139, 0.9999 → 1278 |
 | RMSProp ρ, Beale, $\eta = 10^{-3}$ | 0 → not reached ($f = 2.3\times10^{-4}$), 0.5 to 0.99 → not reached ($f = 9.0\times10^{-6}$), 0.999 → 8675 |
 | Adam ε, bowl, $\eta = 0.1$ | $10^{-8}$ to $10^{-2}$ → 149, 0.1 → 152, 1 → 167 |
+| AdamW λ, Booth, $\eta = 0.3$ | 0 → 93, $10^{-5}$ → 93, $10^{-4}$ → 705, $10^{-3}$ → 4616, $10^{-2}$ → 8910, 0.1 → not reached ($f = 2.1\times10^{-4}$) |
+| AdamW λ, bowl, $\eta = 0.3$ | 0 → 132, $10^{-3}$ → 132, $10^{-2}$ → 131, 0.1 → 104, 1 → 37 |
+| AdaGrad ε, bowl, $\eta = 1$ | $10^{-8}$ to $10^{-2}$ → 47, 0.1 → 49, 1 → 61 |
+| Lion β₁, Beale, $\eta = 0.01$, cosine, nudged start | 0 → 9460, 0.5 → 9189, 0.9 → 5804, 0.95 → 5890, 0.99 → 8203 |
+| Lion β₂, Beale, $\eta = 0.01$, cosine, nudged start | 0 → 9424, 0.9 → 8110, 0.99 → 5804, 0.999 → not reached ($f = 0.39$) |
 
 Momentum has a sweet spot on both surfaces (0.8 on the bowl, 0.95 on
 Rosenbrock), and past it the extra velocity costs steps. On Rosenbrock, Adam
@@ -338,6 +343,16 @@ needs a long gradient memory: $\beta_1 \le 0.5$ or $\beta_2 \le 0.99$ does not
 converge within 10,000 steps at this $\eta$. RMSProp on Beale only gets to
 $10^{-6}$ with $\rho = 0.999$. ε barely matters until it reaches the gradient
 scale near the end of the run.
+
+AdamW's λ is a pure cost wherever the minimum is away from the origin: on
+Booth it takes 93 steps up to $\lambda = 10^{-5}$, 705 at $10^{-4}$, 4,616 at
+$10^{-3}$ and 8,910 at the default $10^{-2}$, and $\lambda = 0.1$ never gets
+there. On the bowl,
+whose minimum *is* the origin, the same decay speeds it up (132 → 37 at
+$\lambda = 1$). Lion's defaults (0.9, 0.99) are the best of each sweep, and
+both betas matter: with $\beta_1 = 0$ the sign is of the raw gradient (sign
+descent with a cosine rate, 9,460 steps); with $\beta_2 = 0.999$ the
+momentum is too slow to follow Beale's curving valley.
 
 ## Surfaces
 
