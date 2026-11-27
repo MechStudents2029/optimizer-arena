@@ -1,5 +1,6 @@
 import { makeOptimizer, optimizerIds, type Hyperparams, type OptimizerId } from "./optimizers.ts";
 import { run, type Trajectory } from "./run.ts";
+import { makeSchedule, type ScheduleId, type ScheduleOptions } from "./schedules.ts";
 import type { Surface, Vec2 } from "./surfaces.ts";
 
 /** Learning rates every optimizer is tried with; the best one per surface wins. */
@@ -16,6 +17,11 @@ export interface RaceOptions {
   start?: Vec2;
   /** β, ρ, β₁, β₂, ε shared by every run; defaults to the usual values. */
   hyperparams?: Hyperparams;
+  /** Learning-rate schedule, stretched over the step budget. Default "constant". */
+  schedule?: ScheduleId;
+  scheduleOptions?: ScheduleOptions;
+  /** Which optimizers race; default all of them. */
+  optimizers?: OptimizerId[];
 }
 
 export interface RaceEntry {
@@ -54,11 +60,12 @@ function better(a: RaceEntry, b: RaceEntry): boolean {
 export function race(surface: Surface, options: RaceOptions = {}): RaceEntry[] {
   const { steps = 10_000, tol = 1e-6, lrGrid = LR_GRID, start, hyperparams } = options;
   const goalIsEscape = !Number.isFinite(surface.minValue);
-  return optimizerIds.map((id) => {
+  const schedule = makeSchedule(options.schedule ?? "constant", steps, options.scheduleOptions);
+  return (options.optimizers ?? optimizerIds).map((id) => {
     let best: RaceEntry = { optimizer: id, lr: null, steps: null, finalLoss: Infinity, trajectory: null };
     for (const lr of lrGrid) {
       // On the saddle, stop as soon as the optimizer is clearly past it.
-      const t = run(surface, makeOptimizer(id, lr, hyperparams), {
+      const t = run(surface, makeOptimizer(id, lr, hyperparams, schedule), {
         steps,
         tol,
         start,
