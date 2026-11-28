@@ -10,7 +10,11 @@ Rastrigin, Ackley, Booth), with the update-rule math written next to each one.
 
 Written in TypeScript with no runtime dependencies. Work in progress.
 
-![2D race on Rosenbrock: momentum, Nesterov and Adam reach the minimum while GD and RMSProp are still in the valley](docs/screenshots/rosenbrock.png)
+![The 2D race on Rosenbrock, animated: eight optimizers leave the same start; momentum, Nesterov, Adam and Lion reach the minimum while the rest are still in the valley](docs/screenshots/rosenbrock-2d.gif)
+
+**Which one should I use?** [docs/which-optimizer.md](docs/which-optimizer.md)
+turns the measured tables into a guide: which optimizer and schedule did best
+on which kind of surface, with the numbers behind each pick.
 
 **[Live demo](https://optimizer-arena.vercel.app)** (or `npm run dev` locally) opens the race on a log-scaled contour map of the surface, the
 eight trajectories drawn step by step (tick or untick each racer), and each
@@ -27,7 +31,16 @@ surface in its colour, drag orbits and the wheel zooms. It is a hand-rolled
 projection on canvas 2D with no 3D library; [how it works](#the-3d-view-how-a-surface-gets-onto-a-flat-canvas),
 and [frame by frame](docs/3d-view.md).
 
-![3D view of Rosenbrock in log height: the curved valley, with the five optimizer paths drawn on the surface](docs/screenshots/rosenbrock-3d.png)
+![The 3D view of Rosenbrock in log height, animated: the eight paths drawn on the curved valley as the race runs](docs/screenshots/rosenbrock-3d.gif)
+
+<details>
+<summary>Full-page stills (2D, 3D, Himmelblau in 3D)</summary>
+
+![The demo page in 2D on Rosenbrock after the race, with all eight racers, their tuned η, steps and loss](docs/screenshots/rosenbrock.png)
+![The demo page in 3D on Rosenbrock after the race](docs/screenshots/rosenbrock-3d.png)
+![Himmelblau in 3D: from (−0.5, −0.5) the paths curl into the minimum at (−2.805, 3.131); the other three minima are marked with crosses](docs/screenshots/himmelblau-3d.png)
+
+</details>
 
 ## The problem
 
@@ -594,6 +607,9 @@ The three Day 4 optimizers:
   included; [docs/lr-schedules.md](docs/lr-schedules.md) has all four
   schedules.
 
+For a summary of what all of this means in practice, see
+[Which optimizer when](docs/which-optimizer.md).
+
 Learning rates matter as much as the algorithm: plain GD with $\eta = 0.1$,
 its best rate on the bowl, diverges on Rosenbrock
 within 100 steps (a unit test checks this).
@@ -622,6 +638,7 @@ npm test
 npm run race   # regenerate the results table (add -- --schedule cosine, -- --start-off-lattice)
 npm run sweep  # regenerate the hyperparameter sweeps (add -- --schedule cosine)
 npm run dev
+./scripts/screenshots.sh  # rebuild the README GIFs and stills (needs google-chrome and ffmpeg)
 ```
 
 ## Project structure
@@ -635,7 +652,9 @@ src/race.ts        learning-rate sweep and ranking used by the script and the de
 src/view3d.ts      3D view math: rotations, perspective, height map, mesh, painter's order
 scripts/race.ts    prints the results table (npm run race)
 scripts/sweep.ts   one-hyperparameter-at-a-time sweeps (npm run sweep)
-docs/              measured tables and derivations: race results, sweeps, LR schedules, saddle escape, 3D view
+scripts/screenshots.sh  headless Chrome + ffmpeg capture of docs/screenshots (no npm dependencies)
+docs/              measured tables and derivations: race results, sweeps, LR schedules, saddle escape, 3D view,
+                   and which-optimizer.md, the practical guide built from them
 web/               the race demo, 2D contour and 3D surface (Vite, canvas, no framework)
 test/              Vitest suite
 ```

@@ -173,9 +173,9 @@ Off-lattice starts:
   Nesterov on Beale win at η = 0.1 (127 and 117 steps) where the constant
   race's best was η = 0.003 (405 and 403): ramping up over 500 steps gets
   them into the valley before the rate is large enough to throw them out. On
-  Booth GD wins at η = 1 in 20 steps, ten times past its 2/λ_max = 0.2
-  stability limit, because it converges while η_t = (t+1)/500 is still
-  below 0.04. The cost is a slower start, and AdaGrad pays most: on the bowl it goes
+  Booth GD wins at a peak η = 1 in 20 steps, nine times past Booth's
+  2/λ_max = 1/9 stability limit (Hessian eigenvalues 18 and 2), because it
+  converges while η_t = (t+1)/500 is still below 0.04, well inside it. The cost is a slower start, and AdaGrad pays most: on the bowl it goes
   from 47 steps to 571, because G sums the large gradients at the start
   point while η_t is still tiny, and by the time the rate has ramped up √G
   is already large and never shrinks.
