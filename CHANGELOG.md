@@ -3,7 +3,7 @@
 ## Day 5 — 2026-11-28
 
 - README visuals: animated GIFs of the Rosenbrock race in the 2D contour view and on the 3D surface, refreshed full-page stills (they still showed the five Day 1 racers), and a Himmelblau 3D still.
-- `scripts/screenshots.sh` rebuilds `docs/screenshots` from the built demo: `capture-still.mjs` and `capture-frames.mjs` drive headless Chrome over the DevTools protocol with Node's built-in `fetch` and `WebSocket` (no npm dependencies), and ffmpeg turns the frames into GIFs.
+- `npm run screenshots` (`scripts/screenshots.sh`) rebuilds `docs/screenshots` from the built demo: `capture-still.mjs` and `capture-frames.mjs` drive headless Chrome over the DevTools protocol with Node's built-in `fetch` and `WebSocket` (no npm dependencies), and ffmpeg turns the frames into GIFs.
 - `docs/which-optimizer.md`: which optimizer and schedule to use on which kind of surface, built only from the measured tables (re-run for it with `npm run race`, unchanged). Adam is the safe default (6 of 8 surfaces at a constant rate, 7 with cosine); momentum wins the narrow valley (Rosenbrock 450); RMSProp the ill-conditioned bowl (25); plain GD the well-conditioned one (Booth 14); a decaying schedule matters more than the optimizer on Rastrigin and Ackley, and with step decay RMSProp is the only optimizer to reach all eight surfaces.
 - Fix: `docs/lr-schedules.md` gave Booth's stability limit as 2/λ_max = 0.2 (the bowl's); Booth's Hessian has eigenvalues 18 and 2, so it is 1/9.
 - 153 tests (from 149): GD on Booth converges at η = 0.105 and diverges at 0.115; warmup + cosine at peak η = 1 converges in 20 steps, all below 1/9; RMSProp reaches 8 surfaces with step decay and 4 at a constant rate; AdamW's Booth step counts across λ.

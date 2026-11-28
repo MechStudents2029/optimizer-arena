@@ -641,7 +641,7 @@ npm test
 npm run race   # regenerate the results table (add -- --schedule cosine, -- --start-off-lattice)
 npm run sweep  # regenerate the hyperparameter sweeps (add -- --schedule cosine)
 npm run dev
-./scripts/screenshots.sh  # rebuild the README GIFs and stills (needs google-chrome and ffmpeg)
+npm run screenshots  # rebuild the README GIFs and stills (needs google-chrome and ffmpeg)
 ```
 
 ## Project structure

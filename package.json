@@ -21,7 +21,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "sweep": "node --experimental-strip-types scripts/sweep.ts"
+    "sweep": "node --experimental-strip-types scripts/sweep.ts",
+    "screenshots": "bash scripts/screenshots.sh"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
