@@ -574,13 +574,16 @@ What the numbers say:
   $\eta = 0.03$ ends at $f = 43.7$). The $\eta$ in each cell is just the
   first of the tied rates. Started inside the central basin at $(0.3, -0.4)$,
   plain GD does reach 0 (a unit test).
-- **Ackley.** Nobody reaches $10^{-6}$ in 10,000 steps. Small steps settle in
+- **Ackley.** Nobody reaches $10^{-6}$ in 10,000 steps at a constant rate
+  (with step decay GD and RMSProp do, in 3,001 and 2,001 steps; see
+  [docs/lr-schedules.md](docs/lr-schedules.md)). Small steps settle in
   the ripple next to the start (Nesterov's best run, $\eta = 3\times10^{-4}$,
   ends at $(2.98, -2.98)$ with $f = 9.0$). Larger steps cross the ripples:
   momentum at $\eta = 0.03$ gets most of the way in and then stops in the
   ripple at $(0, 0.95)$ ($f = 2.58$); GD at $\eta = 0.1$ never settles (its
   last 500 losses range from 0.04 to 4.5, and the table shows wherever step
-  10,000 happens to be). Adam at $\eta = 1$ ends closest: it reaches the
+  10,000 happens to be). Of the five Day 1 methods, Adam at $\eta = 1$ ends
+  closest (AdaGrad, below, ends closer still): it reaches the
   funnel and hovers there (last 500 losses between 0.139 and 0.147), about
   $0.04$ from the origin, without settling to the bottom.
 
